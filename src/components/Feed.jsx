@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { supabase } from '../supabaseClient'
 
 function fmtTime(iso) {
@@ -71,7 +71,17 @@ function PostCard({ post, profile, myLikedSet, onToggleLike }) {
         </div>
         <span style={{ fontSize: 12, color: 'var(--text-soft)' }}>{fmtTime(post.created_at)}</span>
       </div>
+
       <p style={{ fontSize: 14, lineHeight: 1.5, marginBottom: 10 }}>{post.content}</p>
+
+      {post.image_url && (
+        <img
+          src={post.image_url}
+          alt=""
+          style={{ width: '100%', borderRadius: 10, marginBottom: 10, border: '1px solid var(--ring)', display: 'block' }}
+        />
+      )}
+
       <span className="badge" style={{ marginBottom: 10, display: 'inline-block' }}>Educational — not personalized advice</span>
 
       <div style={{ display: 'flex', gap: 16, marginTop: 10, paddingTop: 10, borderTop: '1px solid var(--ring)' }}>
@@ -136,15 +146,28 @@ export default function Feed({ profile }) {
   const [posts, setPosts] = useState([])
   const [myLikedSet, setMyLikedSet] = useState(new Set())
   const [content, setContent] = useState('')
+  const [imageFile, setImageFile] = useState(null)
+  const [imagePreview, setImagePreview] = useState(null)
   const [posting, setPosting] = useState(false)
   const [loading, setLoading] = useState(true)
+  const [postError, setPostError] = useState('')
+  const fileInputRef = useRef(null)
 
   async function load() {
-    const { data: postRows } = await supabase
+    let query = supabase
       .from('posts')
       .select('*, post_likes(count), post_comments(count)')
       .order('created_at', { ascending: false })
       .limit(50)
+
+    if (profile.role === 'ps') {
+      const { data: followRows } = await supabase.from('follows').select('target_id').eq('follower_id', profile.id)
+      const followedIds = (followRows || []).map((f) => f.target_id)
+      const idsToShow = Array.from(new Set([...followedIds, profile.id])) // include own posts
+      query = query.in('author_id', idsToShow)
+    }
+
+    const { data: postRows } = await query
 
     const shaped = (postRows || []).map((p) => ({
       ...p,
@@ -167,7 +190,7 @@ export default function Feed({ profile }) {
       .subscribe()
     return () => supabase.removeChannel(channel)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+  }, [profile.id, profile.role])
 
   async function handleToggleLike(postId, wasLiked) {
     setMyLikedSet((prev) => {
@@ -182,17 +205,56 @@ export default function Feed({ profile }) {
     }
   }
 
+  function handlePickImage(e) {
+    const file = e.target.files?.[0]
+    if (!file) return
+    if (file.size > 5 * 1024 * 1024) {
+      setPostError('Image must be under 5MB.')
+      return
+    }
+    setPostError('')
+    setImageFile(file)
+    setImagePreview(URL.createObjectURL(file))
+  }
+
+  function clearImage() {
+    setImageFile(null)
+    setImagePreview(null)
+    if (fileInputRef.current) fileInputRef.current.value = ''
+  }
+
   async function handlePost() {
-    if (!content.trim()) return
+    if (!content.trim() && !imageFile) return
     setPosting(true)
-    const { error } = await supabase.from('posts').insert({
-      author_id: profile.id,
-      author_name: profile.name,
-      author_specialization: profile.specialization,
-      content: content.trim(),
-    })
-    setPosting(false)
-    if (!error) setContent('')
+    setPostError('')
+
+    let imageUrl = null
+    try {
+      if (imageFile) {
+        const ext = imageFile.name.split('.').pop()
+        const path = `${profile.id}/${Date.now()}.${ext}`
+        const { error: uploadError } = await supabase.storage.from('post-images').upload(path, imageFile)
+        if (uploadError) throw uploadError
+        const { data: urlData } = supabase.storage.from('post-images').getPublicUrl(path)
+        imageUrl = urlData.publicUrl
+      }
+
+      const { error } = await supabase.from('posts').insert({
+        author_id: profile.id,
+        author_name: profile.name,
+        author_specialization: profile.specialization,
+        content: content.trim(),
+        image_url: imageUrl,
+      })
+      if (error) throw error
+
+      setContent('')
+      clearImage()
+    } catch (err) {
+      setPostError(err.message || 'Could not post. Please try again.')
+    } finally {
+      setPosting(false)
+    }
   }
 
   return (
@@ -206,15 +268,37 @@ export default function Feed({ profile }) {
             rows={3}
             style={{ marginBottom: 10 }}
           />
+
+          {imagePreview && (
+            <div style={{ position: 'relative', marginBottom: 10 }}>
+              <img src={imagePreview} alt="" style={{ width: '100%', borderRadius: 10, border: '1px solid var(--ring)', display: 'block' }} />
+              <button
+                onClick={clearImage}
+                type="button"
+                style={{ position: 'absolute', top: 8, right: 8, background: 'rgba(0,0,0,0.7)', color: '#fff', border: 'none', borderRadius: 6, width: 26, height: 26, cursor: 'pointer', fontSize: 14 }}
+              >
+                ×
+              </button>
+            </div>
+          )}
+
+          {postError && <p className="error-text" style={{ marginBottom: 10 }}>{postError}</p>}
+
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-            <span className="badge">Educational — not personalized advice</span>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <span className="badge">Educational — not personalized advice</span>
+              <input ref={fileInputRef} type="file" accept="image/*" onChange={handlePickImage} style={{ display: 'none' }} id="post-image-input" />
+              <label htmlFor="post-image-input" className="btn-ghost" style={{ padding: '6px 10px', borderRadius: 8, fontSize: 12, cursor: 'pointer' }}>
+                🖼️ Add image
+              </label>
+            </div>
             <button
               onClick={handlePost}
               disabled={posting}
               className="btn-gold"
               style={{ padding: '8px 16px', borderRadius: 8, fontSize: 14 }}
             >
-              Post
+              {posting ? 'Posting...' : 'Post'}
             </button>
           </div>
         </div>
@@ -222,7 +306,12 @@ export default function Feed({ profile }) {
 
       {loading && <p style={{ textAlign: 'center', color: 'var(--text-soft)', padding: '40px 0' }}>Loading...</p>}
 
-      {!loading && posts.length === 0 && (
+      {!loading && posts.length === 0 && profile.role === 'ps' && (
+        <p style={{ textAlign: 'center', color: 'var(--text-soft)', padding: '40px 0', fontSize: 14 }}>
+          Follow other advisors from Discover to see their posts here.
+        </p>
+      )}
+      {!loading && posts.length === 0 && profile.role !== 'ps' && (
         <p style={{ textAlign: 'center', color: 'var(--text-soft)', padding: '40px 0', fontSize: 14 }}>
           No posts yet. Advisors' updates will show up here.
         </p>

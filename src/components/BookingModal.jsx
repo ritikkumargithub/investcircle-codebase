@@ -1,15 +1,22 @@
 import { useState } from 'react'
 import { supabase } from '../supabaseClient'
+import Calendar from './Calendar'
+
+const TIME_SLOTS = [
+  '9:00 AM', '10:00 AM', '11:00 AM', '12:00 PM',
+  '1:00 PM', '2:00 PM', '3:00 PM', '4:00 PM', '5:00 PM', '6:00 PM',
+]
 
 export default function BookingModal({ advisor, profile, onClose }) {
-  const [preferredTime, setPreferredTime] = useState('')
+  const [date, setDate] = useState(null)
+  const [time, setTime] = useState(null)
   const [note, setNote] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
 
   async function handleSubmit() {
-    if (!preferredTime.trim()) {
-      setError('Please add a preferred time.')
+    if (!date || !time) {
+      setError('Please pick a date and a time slot.')
       return
     }
     setLoading(true)
@@ -18,7 +25,9 @@ export default function BookingModal({ advisor, profile, onClose }) {
       retail_name: profile.name,
       ps_id: advisor.id,
       ps_name: advisor.name,
-      preferred_time: preferredTime.trim(),
+      booking_date: date,
+      booking_time: time,
+      preferred_time: `${date} · ${time}`,
       note: note.trim(),
       status: 'pending',
     })
@@ -32,20 +41,32 @@ export default function BookingModal({ advisor, profile, onClose }) {
 
   return (
     <div
-      style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16, zIndex: 50 }}
+      style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16, zIndex: 50, overflowY: 'auto' }}
       onClick={(e) => { if (e.target === e.currentTarget) onClose() }}
     >
-      <div className="card fade-in" style={{ padding: 20, width: '100%', maxWidth: 380 }}>
+      <div className="card fade-in" style={{ padding: 20, width: '100%', maxWidth: 400, maxHeight: '90vh', overflowY: 'auto' }}>
         <h3 className="serif" style={{ fontSize: 18, marginBottom: 4 }}>Book with {advisor.name}</h3>
         <p style={{ fontSize: 12, color: 'var(--text-soft)', marginBottom: 16 }}>
-          Request a session. The advisor will confirm availability.
+          Pick a date and time. The advisor will confirm availability.
         </p>
-        <input
-          value={preferredTime}
-          onChange={(e) => setPreferredTime(e.target.value)}
-          placeholder="Preferred date/time (e.g. Mon 5pm)"
-          style={{ marginBottom: 12 }}
-        />
+
+        <Calendar selectedDate={date} onSelectDate={setDate} />
+
+        <p style={{ fontSize: 12, color: 'var(--text-soft)', margin: '16px 0 8px' }}>Time slot</p>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 8, marginBottom: 16 }}>
+          {TIME_SLOTS.map((t) => (
+            <button
+              key={t}
+              type="button"
+              onClick={() => setTime(t)}
+              className={time === t ? 'btn-gold' : 'btn-ghost'}
+              style={{ padding: '8px', borderRadius: 8, fontSize: 13 }}
+            >
+              {t}
+            </button>
+          ))}
+        </div>
+
         <textarea
           value={note}
           onChange={(e) => setNote(e.target.value)}

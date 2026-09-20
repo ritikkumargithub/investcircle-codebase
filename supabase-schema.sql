@@ -151,3 +151,22 @@ create policy "Users can comment as themselves"
 
 alter publication supabase_realtime add table post_likes;
 alter publication supabase_realtime add table post_comments;
+
+-- 6) Image support on posts + proper calendar fields on bookings
+alter table posts add column if not exists image_url text;
+alter table bookings add column if not exists booking_date date;
+alter table bookings add column if not exists booking_time text;
+
+-- 7) Storage bucket for post images
+insert into storage.buckets (id, name, public)
+values ('post-images', 'post-images', true)
+on conflict (id) do nothing;
+
+create policy "Public read for post-images"
+  on storage.objects for select
+  using (bucket_id = 'post-images');
+
+create policy "Authenticated users can upload post images"
+  on storage.objects for insert
+  to authenticated
+  with check (bucket_id = 'post-images');

@@ -10,7 +10,7 @@ export default function Discover({ profile }) {
 
   useEffect(() => {
     async function load() {
-      const { data: profs } = await supabase.from('profiles').select('*').eq('role', 'ps')
+      const { data: profs } = await supabase.from('profiles').select('*').eq('role', 'ps').neq('id', profile.id)
       setAdvisors(profs || [])
 
       const { data: follows } = await supabase
@@ -33,20 +33,17 @@ export default function Discover({ profile }) {
     }
   }
 
-  if (profile.role === 'ps') {
-    return (
-      <p style={{ textAlign: 'center', color: 'var(--text-soft)', fontSize: 14, padding: '24px 0' }}>
-        Advisor discovery is for retail investors. Switch to the Feed tab to post.
-      </p>
-    )
-  }
-
   return (
     <div className="fade-in">
+      {profile.role === 'ps' && (
+        <p style={{ fontSize: 12, color: 'var(--text-soft)', marginBottom: 14 }}>
+          Follow other advisors to see their posts in your feed. Booking is disabled between advisors.
+        </p>
+      )}
       {loading && <p style={{ textAlign: 'center', color: 'var(--text-soft)', padding: '40px 0' }}>Loading...</p>}
       {!loading && advisors.length === 0 && (
         <p style={{ textAlign: 'center', color: 'var(--text-soft)', padding: '40px 0', fontSize: 14 }}>
-          No advisors have joined yet.
+          No other advisors have joined yet.
         </p>
       )}
       <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
@@ -70,13 +67,15 @@ export default function Discover({ profile }) {
                 >
                   {isFollowing ? 'Following' : 'Follow'}
                 </button>
-                <button
-                  onClick={() => setBookingAdvisor(a)}
-                  className="btn-ghost"
-                  style={{ flex: 1, padding: '8px', borderRadius: 8, fontSize: 13, fontWeight: 600 }}
-                >
-                  Book session
-                </button>
+                {profile.role !== 'ps' && (
+                  <button
+                    onClick={() => setBookingAdvisor(a)}
+                    className="btn-ghost"
+                    style={{ flex: 1, padding: '8px', borderRadius: 8, fontSize: 13, fontWeight: 600 }}
+                  >
+                    Book session
+                  </button>
+                )}
               </div>
             </div>
           )
