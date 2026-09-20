@@ -108,3 +108,46 @@ create policy "Advisors can update the status of their own bookings"
 -- Realtime: enable so the app's live feed/bookings subscriptions work
 alter publication supabase_realtime add table posts;
 alter publication supabase_realtime add table bookings;
+
+-- 5) LIKES and COMMENTS on posts
+create table if not exists post_likes (
+  post_id uuid not null references posts(id) on delete cascade,
+  user_id uuid not null references profiles(id) on delete cascade,
+  created_at timestamptz not null default now(),
+  primary key (post_id, user_id)
+);
+
+create table if not exists post_comments (
+  id uuid primary key default gen_random_uuid(),
+  post_id uuid not null references posts(id) on delete cascade,
+  author_id uuid not null references profiles(id) on delete cascade,
+  author_name text not null,
+  content text not null,
+  created_at timestamptz not null default now()
+);
+
+alter table post_likes enable row level security;
+alter table post_comments enable row level security;
+
+create policy "Likes are viewable by everyone signed in"
+  on post_likes for select
+  using (auth.role() = 'authenticated');
+
+create policy "Users can like as themselves"
+  on post_likes for insert
+  with check (auth.uid() = user_id);
+
+create policy "Users can unlike their own like"
+  on post_likes for delete
+  using (auth.uid() = user_id);
+
+create policy "Comments are viewable by everyone signed in"
+  on post_comments for select
+  using (auth.role() = 'authenticated');
+
+create policy "Users can comment as themselves"
+  on post_comments for insert
+  with check (auth.uid() = author_id);
+
+alter publication supabase_realtime add table post_likes;
+alter publication supabase_realtime add table post_comments;
