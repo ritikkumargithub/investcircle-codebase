@@ -3,19 +3,18 @@ import { supabase } from '../supabaseClient'
 import Calendar from './Calendar'
 
 const TIME_SLOTS = ['9:00 AM','10:00 AM','11:00 AM','12:00 PM','1:00 PM','2:00 PM','3:00 PM','4:00 PM','5:00 PM','6:00 PM']
+const DURATIONS = [15, 30, 45, 60]
 
 export default function BookingModal({ advisor, profile, onClose }) {
   const [date, setDate] = useState(null)
   const [time, setTime] = useState(null)
+  const [duration, setDuration] = useState(30)
   const [note, setNote] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
 
   async function handleSubmit() {
-    if (!date || !time) {
-      setError('Please pick a date and a time slot.')
-      return
-    }
+    if (!date || !time) { setError('Please pick a date and a time slot.'); return }
     setLoading(true)
     const { error } = await supabase.from('bookings').insert({
       retail_id: profile.id,
@@ -24,6 +23,7 @@ export default function BookingModal({ advisor, profile, onClose }) {
       ps_name: advisor.name,
       booking_date: date,
       booking_time: time,
+      duration_minutes: duration,
       preferred_time: `${date} · ${time}`,
       note: note.trim(),
       status: 'pending',
@@ -48,6 +48,15 @@ export default function BookingModal({ advisor, profile, onClose }) {
           {TIME_SLOTS.map((t) => (
             <button key={t} type="button" onClick={() => setTime(t)} className={time === t ? 'btn-gold' : 'btn-ghost'} style={{ padding: '8px', borderRadius: 8, fontSize: 13 }}>
               {t}
+            </button>
+          ))}
+        </div>
+
+        <p style={{ fontSize: 12, color: 'var(--text-soft)', marginBottom: 8 }}>Session length</p>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8, marginBottom: 16 }}>
+          {DURATIONS.map((d) => (
+            <button key={d} type="button" onClick={() => setDuration(d)} className={duration === d ? 'btn-gold' : 'btn-ghost'} style={{ padding: '8px', borderRadius: 8, fontSize: 13 }}>
+              {d}m
             </button>
           ))}
         </div>

@@ -141,3 +141,18 @@ insert into storage.buckets (id, name, public) values ('post-images', 'post-imag
 
 create policy "Public read for post-images" on storage.objects for select using (bucket_id = 'post-images');
 create policy "Authenticated users can upload post images" on storage.objects for insert to authenticated with check (bucket_id = 'post-images');
+
+-- 9) Duration + completion status for both booking types (time-gated call joins)
+alter table bookings add column if not exists duration_minutes int not null default 30;
+alter table sessions add column if not exists duration_minutes int not null default 30;
+
+alter table bookings drop constraint if exists bookings_status_check;
+alter table bookings add constraint bookings_status_check check (status in ('pending','confirmed','declined','completed'));
+
+alter table sessions drop constraint if exists sessions_status_check;
+alter table sessions add constraint sessions_status_check check (status in ('scheduled','cancelled','completed'));
+
+create policy "Retail users can update their own bookings (e.g. mark completed)"
+  on bookings for update
+  using (auth.uid() = retail_id)
+  with check (auth.uid() = retail_id);

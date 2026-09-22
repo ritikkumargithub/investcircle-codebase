@@ -1,41 +1,33 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { supabase } from '../supabaseClient'
 import Calendar, { toISODate } from './Calendar'
 import CallRoom from './CallRoom'
+import { getWindowStatus, formatCountdown } from '../timeUtils'
 
 const TIME_SLOTS = ['9:00 AM','10:00 AM','11:00 AM','12:00 PM','1:00 PM','2:00 PM','3:00 PM','4:00 PM','5:00 PM','6:00 PM']
+const DURATIONS = [15, 30, 45, 60, 90]
 
 export default function Sessions({ profile }) {
   const [sessions, setSessions] = useState([])
-  const [regCounts, setRegCounts] = useState({}) // sessionId -> count
-  const [myRegs, setMyRegs] = useState(new Set()) // sessionId set (retail only)
+  const [regCounts, setRegCounts] = useState({})
+  const [myRegs, setMyRegs] = useState(new Set())
   const [loading, setLoading] = useState(true)
   const [showCreate, setShowCreate] = useState(false)
   const [activeCall, setActiveCall] = useState(null)
+  const [, setTick] = useState(0)
+  const completingRef = useRef(new Set())
 
   async function load() {
-    const { data: sessionRows } = await supabase
-      .from('sessions')
-      .select('*')
-      .eq('status', 'scheduled')
-      .order('session_date', { ascending: true })
-
+    const { data: sessionRows } = await supabase.from('sessions').select('*').in('status', ['scheduled', 'completed']).order('session_date', { ascending: true })
     const rows = sessionRows || []
     setSessions(rows)
 
     if (rows.length > 0) {
-      const { data: regs } = await supabase
-        .from('session_registrations')
-        .select('session_id, retail_id')
-        .in('session_id', rows.map((s) => s.id))
-
+      const { data: regs } = await supabase.from('session_registrations').select('session_id, retail_id').in('session_id', rows.map((s) => s.id))
       const counts = {}
       ;(regs || []).forEach((r) => { counts[r.session_id] = (counts[r.session_id] || 0) + 1 })
       setRegCounts(counts)
-
-      if (profile.role !== 'ps') {
-        setMyRegs(new Set((regs || []).filter((r) => r.retail_id === profile.id).map((r) => r.session_id)))
-      }
+      if (profile.role !== 'ps') setMyRegs(new Set((regs || []).filter((r) => r.retail_id === profile.id).map((r) => r.session_id)))
     }
     setLoading(false)
   }
@@ -47,9 +39,25 @@ export default function Sessions({ profile }) {
       .on('postgres_changes', { event: '*', schema: 'public', table: 'sessions' }, () => load())
       .on('postgres_changes', { event: '*', schema: 'public', table: 'session_registrations' }, () => load())
       .subscribe()
-    return () => supabase.removeChannel(channel)
+    const interval = setInterval(() => setTick((t) => t + 1), 30000)
+    return () => { supabase.removeChannel(channel); clearInterval(interval) }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [profile.id])
+
+  // Auto-complete a session once its window has ended (only the host has write rights)
+  useEffect(() => {
+    if (profile.role !== 'ps') return
+    sessions.forEach((s) => {
+      if (s.status !== 'scheduled' || s.ps_id !== profile.id) return
+      if (completingRef.current.has(s.id)) return
+      const windowStatus = getWindowStatus(s.session_date, s.session_time, s.duration_minutes)
+      if (windowStatus === 'ended') {
+        completingRef.current.add(s.id)
+        supabase.from('sessions').update({ status: 'completed' }).eq('id', s.id).then(() => load())
+      }
+    })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sessions, profile.id, profile.role])
 
   async function handleRegister(sessionId) {
     await supabase.from('session_registrations').insert({ session_id: sessionId, retail_id: profile.id, retail_name: profile.name })
@@ -61,8 +69,9 @@ export default function Sessions({ profile }) {
     await supabase.from('sessions').update({ status: 'cancelled' }).eq('id', sessionId)
   }
 
-  const mySessions = useMemo(() => sessions.filter((s) => s.ps_id === profile.id), [sessions, profile.id])
-  const otherSessions = useMemo(() => sessions.filter((s) => s.ps_id !== profile.id), [sessions, profile.id])
+  const scheduled = useMemo(() => sessions.filter((s) => s.status === 'scheduled'), [sessions])
+  const mySessions = useMemo(() => scheduled.filter((s) => s.ps_id === profile.id), [scheduled, profile.id])
+  const otherSessions = useMemo(() => scheduled.filter((s) => s.ps_id !== profile.id), [scheduled, profile.id])
 
   if (loading) return <p style={{ textAlign: 'center', color: 'var(--text-soft)', padding: '40px 0' }}>Loading...</p>
 
@@ -73,20 +82,12 @@ export default function Sessions({ profile }) {
           <button onClick={() => setShowCreate(true)} className="btn-gold" style={{ width: '100%', padding: '12px', borderRadius: 8, fontSize: 14, fontWeight: 700, marginBottom: 20 }}>
             + Create a group session
           </button>
-
           {mySessions.length > 0 && (
             <>
               <p style={{ fontSize: 13, color: 'var(--text-soft)', marginBottom: 10 }}>Your sessions</p>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginBottom: 24 }}>
                 {mySessions.map((s) => (
-                  <SessionCard
-                    key={s.id}
-                    s={s}
-                    registeredCount={regCounts[s.id] || 0}
-                    isOwner
-                    onCancel={() => handleCancelSession(s.id)}
-                    onJoinCall={() => setActiveCall(s)}
-                  />
+                  <SessionCard key={s.id} s={s} registeredCount={regCounts[s.id] || 0} isOwner onCancel={() => handleCancelSession(s.id)} onJoinCall={() => setActiveCall(s)} />
                 ))}
               </div>
             </>
@@ -94,12 +95,8 @@ export default function Sessions({ profile }) {
         </>
       )}
 
-      <p style={{ fontSize: 13, color: 'var(--text-soft)', marginBottom: 10 }}>
-        {profile.role === 'ps' ? 'Other advisors\u2019 sessions' : 'Upcoming sessions'}
-      </p>
-      {otherSessions.length === 0 && (
-        <p style={{ textAlign: 'center', color: 'var(--text-soft)', padding: '20px 0', fontSize: 14 }}>No upcoming sessions yet.</p>
-      )}
+      <p style={{ fontSize: 13, color: 'var(--text-soft)', marginBottom: 10 }}>{profile.role === 'ps' ? 'Other advisors\u2019 sessions' : 'Upcoming sessions'}</p>
+      {otherSessions.length === 0 && <p style={{ textAlign: 'center', color: 'var(--text-soft)', padding: '20px 0', fontSize: 14 }}>No upcoming sessions yet.</p>}
       <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
         {otherSessions.map((s) => {
           const count = regCounts[s.id] || 0
@@ -107,14 +104,8 @@ export default function Sessions({ profile }) {
           const registered = myRegs.has(s.id)
           return (
             <SessionCard
-              key={s.id}
-              s={s}
-              registeredCount={count}
-              isRetailViewer={profile.role !== 'ps'}
-              full={full}
-              registered={registered}
-              onRegister={() => handleRegister(s.id)}
-              onUnregister={() => handleUnregister(s.id)}
+              key={s.id} s={s} registeredCount={count} isRetailViewer={profile.role !== 'ps'} full={full} registered={registered}
+              onRegister={() => handleRegister(s.id)} onUnregister={() => handleUnregister(s.id)}
               onJoinCall={registered ? () => setActiveCall(s) : undefined}
             />
           )
@@ -122,15 +113,15 @@ export default function Sessions({ profile }) {
       </div>
 
       {showCreate && <CreateSessionModal profile={profile} onClose={() => setShowCreate(false)} />}
-
-      {activeCall && (
-        <CallRoom roomId={`session-${activeCall.id}`} profile={profile} title={activeCall.title} onLeave={() => setActiveCall(null)} />
-      )}
+      {activeCall && <CallRoom roomId={`session-${activeCall.id}`} profile={profile} title={activeCall.title} onLeave={() => setActiveCall(null)} />}
     </div>
   )
 }
 
 function SessionCard({ s, registeredCount, isOwner, isRetailViewer, full, registered, onRegister, onUnregister, onCancel, onJoinCall }) {
+  const windowStatus = getWindowStatus(s.session_date, s.session_time, s.duration_minutes)
+  const countdown = formatCountdown(s.session_date, s.session_time)
+
   return (
     <div className="card" style={{ padding: 16 }}>
       <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 6 }}>
@@ -141,25 +132,36 @@ function SessionCard({ s, registeredCount, isOwner, isRetailViewer, full, regist
         <span className={`badge ${full ? 'badge-gold' : ''}`}>{registeredCount}/{s.capacity} spots</span>
       </div>
       {s.description && <p style={{ fontSize: 14, color: 'var(--text-soft)', marginBottom: 8 }}>{s.description}</p>}
-      <p style={{ fontSize: 12, color: 'var(--text-soft)', marginBottom: 10 }}>{s.session_date} · {s.session_time}</p>
+      <p style={{ fontSize: 12, color: 'var(--text-soft)', marginBottom: 10 }}>{s.session_date} · {s.session_time} · {s.duration_minutes} min</p>
 
-      <div style={{ display: 'flex', gap: 8 }}>
-        {isOwner && (
-          <>
-            <button onClick={onJoinCall} className="btn-gold" style={{ flex: 1, padding: '8px', borderRadius: 8, fontSize: 13, fontWeight: 600 }}>📹 Start call</button>
-            <button onClick={onCancel} className="btn-ghost" style={{ flex: 1, padding: '8px', borderRadius: 8, fontSize: 13, fontWeight: 600 }}>Cancel session</button>
-          </>
+      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+        {isOwner && windowStatus === 'live' && (
+          <button onClick={onJoinCall} className="btn-gold" style={{ flex: 1, padding: '8px', borderRadius: 8, fontSize: 13, fontWeight: 600 }}>📹 Start call</button>
         )}
+        {isOwner && windowStatus === 'upcoming' && (
+          <button disabled className="btn-ghost" style={{ flex: 1, padding: '8px', borderRadius: 8, fontSize: 13, fontWeight: 600, opacity: 0.6, cursor: 'not-allowed' }}>
+            📹 {countdown || 'Not started yet'}
+          </button>
+        )}
+        {isOwner && (
+          <button onClick={onCancel} className="btn-ghost" style={{ flex: 1, padding: '8px', borderRadius: 8, fontSize: 13, fontWeight: 600 }}>Cancel session</button>
+        )}
+
         {isRetailViewer && !registered && (
           <button onClick={onRegister} disabled={full} className="btn-gold" style={{ flex: 1, padding: '8px', borderRadius: 8, fontSize: 13, fontWeight: 600 }}>
             {full ? 'Full' : 'Register'}
           </button>
         )}
+        {isRetailViewer && registered && windowStatus === 'live' && (
+          <button onClick={onJoinCall} className="btn-gold" style={{ flex: 1, padding: '8px', borderRadius: 8, fontSize: 13, fontWeight: 600 }}>📹 Join call</button>
+        )}
+        {isRetailViewer && registered && windowStatus === 'upcoming' && (
+          <button disabled className="btn-ghost" style={{ flex: 1, padding: '8px', borderRadius: 8, fontSize: 13, fontWeight: 600, opacity: 0.6, cursor: 'not-allowed' }}>
+            📹 {countdown || 'Not started yet'}
+          </button>
+        )}
         {isRetailViewer && registered && (
-          <>
-            <button onClick={onJoinCall} className="btn-gold" style={{ flex: 1, padding: '8px', borderRadius: 8, fontSize: 13, fontWeight: 600 }}>📹 Join call</button>
-            <button onClick={onUnregister} className="btn-ghost" style={{ flex: 1, padding: '8px', borderRadius: 8, fontSize: 13, fontWeight: 600 }}>Cancel</button>
-          </>
+          <button onClick={onUnregister} className="btn-ghost" style={{ flex: 1, padding: '8px', borderRadius: 8, fontSize: 13, fontWeight: 600 }}>Cancel</button>
         )}
       </div>
     </div>
@@ -171,6 +173,7 @@ function CreateSessionModal({ profile, onClose }) {
   const [description, setDescription] = useState('')
   const [date, setDate] = useState(toISODate(new Date()))
   const [time, setTime] = useState(TIME_SLOTS[0])
+  const [duration, setDuration] = useState(30)
   const [capacity, setCapacity] = useState(10)
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
@@ -180,13 +183,8 @@ function CreateSessionModal({ profile, onClose }) {
     if (!capacity || capacity < 1) { setError('Capacity must be at least 1.'); return }
     setLoading(true)
     const { error } = await supabase.from('sessions').insert({
-      ps_id: profile.id,
-      ps_name: profile.name,
-      title: title.trim(),
-      description: description.trim(),
-      session_date: date,
-      session_time: time,
-      capacity: Number(capacity),
+      ps_id: profile.id, ps_name: profile.name, title: title.trim(), description: description.trim(),
+      session_date: date, session_time: time, duration_minutes: duration, capacity: Number(capacity),
     })
     setLoading(false)
     if (error) { setError(error.message); return }
@@ -197,7 +195,6 @@ function CreateSessionModal({ profile, onClose }) {
     <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16, zIndex: 50, overflowY: 'auto' }} onClick={(e) => { if (e.target === e.currentTarget) onClose() }}>
       <div className="card fade-in" style={{ padding: 20, width: '100%', maxWidth: 420, maxHeight: '90vh', overflowY: 'auto' }}>
         <h3 className="serif" style={{ fontSize: 18, marginBottom: 16 }}>Create a group session</h3>
-
         <input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Title (e.g. Q3 Market Outlook)" style={{ marginBottom: 12 }} />
         <textarea value={description} onChange={(e) => setDescription(e.target.value)} placeholder="What will this session cover?" rows={3} style={{ marginBottom: 12 }} />
 
@@ -209,11 +206,19 @@ function CreateSessionModal({ profile, onClose }) {
           {TIME_SLOTS.map((t) => <option key={t} value={t}>{t}</option>)}
         </select>
 
+        <p style={{ fontSize: 12, color: 'var(--text-soft)', marginBottom: 8 }}>Duration</p>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 6, marginBottom: 12 }}>
+          {DURATIONS.map((d) => (
+            <button key={d} type="button" onClick={() => setDuration(d)} className={duration === d ? 'btn-gold' : 'btn-ghost'} style={{ padding: '8px 4px', borderRadius: 8, fontSize: 12 }}>
+              {d}m
+            </button>
+          ))}
+        </div>
+
         <p style={{ fontSize: 12, color: 'var(--text-soft)', marginBottom: 8 }}>Capacity (max people who can join)</p>
         <input type="number" min="1" value={capacity} onChange={(e) => setCapacity(e.target.value)} style={{ marginBottom: 12 }} />
 
         {error && <p className="error-text" style={{ marginBottom: 12 }}>{error}</p>}
-
         <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
           <button onClick={onClose} className="btn-ghost" style={{ flex: 1, padding: '10px', borderRadius: 8 }}>Cancel</button>
           <button onClick={handleCreate} disabled={loading} className="btn-gold" style={{ flex: 1, padding: '10px', borderRadius: 8, fontWeight: 700 }}>
