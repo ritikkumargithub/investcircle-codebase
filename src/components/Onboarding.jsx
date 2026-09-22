@@ -48,20 +48,10 @@ export default function Onboarding({ userId, onDone }) {
       <div className="card" style={{ padding: 24 }}>
         <p style={{ fontSize: 13, color: 'var(--text-soft)', marginBottom: 8 }}>I am a...</p>
         <div style={{ display: 'flex', gap: 12, marginBottom: 20 }}>
-          <button
-            type="button"
-            className={role === 'retail' ? 'btn-gold' : 'btn-ghost'}
-            onClick={() => setRole('retail')}
-            style={{ flex: 1, padding: '12px', borderRadius: 8, fontSize: 14 }}
-          >
+          <button type="button" className={role === 'retail' ? 'btn-gold' : 'btn-ghost'} onClick={() => setRole('retail')} style={{ flex: 1, padding: '12px', borderRadius: 8, fontSize: 14 }}>
             Retail Investor
           </button>
-          <button
-            type="button"
-            className={role === 'ps' ? 'btn-gold' : 'btn-ghost'}
-            onClick={() => setRole('ps')}
-            style={{ flex: 1, padding: '12px', borderRadius: 8, fontSize: 14 }}
-          >
+          <button type="button" className={role === 'ps' ? 'btn-gold' : 'btn-ghost'} onClick={() => setRole('ps')} style={{ flex: 1, padding: '12px', borderRadius: 8, fontSize: 14 }}>
             Portfolio Provider
           </button>
         </div>
@@ -72,40 +62,19 @@ export default function Onboarding({ userId, onDone }) {
         {role === 'ps' && (
           <div className="fade-in">
             <p style={{ fontSize: 12, color: 'var(--text-soft)', marginBottom: 8 }}>Advisor details</p>
-            <input
-              value={specialization}
-              onChange={(e) => setSpecialization(e.target.value)}
-              placeholder="Specialization (e.g. Retirement planning, IPOs)"
-              style={{ marginBottom: 12 }}
-            />
+            <input value={specialization} onChange={(e) => setSpecialization(e.target.value)} placeholder="Specialization (e.g. Retirement planning, IPOs)" style={{ marginBottom: 12 }} />
             <select value={regType} onChange={(e) => setRegType(e.target.value)} style={{ marginBottom: 12 }}>
               <option value="RIA">SEBI Registered Investment Adviser (RIA)</option>
               <option value="RA">SEBI Research Analyst (RA)</option>
             </select>
-            <input
-              value={sebiRegNo}
-              onChange={(e) => setSebiRegNo(e.target.value)}
-              placeholder="SEBI Registration No."
-              style={{ marginBottom: 12 }}
-            />
-            <textarea
-              value={bio}
-              onChange={(e) => setBio(e.target.value)}
-              placeholder="Short bio"
-              rows={3}
-              style={{ marginBottom: 4 }}
-            />
+            <input value={sebiRegNo} onChange={(e) => setSebiRegNo(e.target.value)} placeholder="SEBI Registration No." style={{ marginBottom: 12 }} />
+            <textarea value={bio} onChange={(e) => setBio(e.target.value)} placeholder="Short bio" rows={3} style={{ marginBottom: 4 }} />
           </div>
         )}
 
         {error && <p className="error-text" style={{ margin: '12px 0' }}>{error}</p>}
 
-        <button
-          onClick={handleSave}
-          disabled={loading}
-          className="btn-gold"
-          style={{ width: '100%', padding: '12px', borderRadius: 8, fontSize: 15, marginTop: 12 }}
-        >
+        <button onClick={handleSave} disabled={loading} className="btn-gold" style={{ width: '100%', padding: '12px', borderRadius: 8, fontSize: 15, marginTop: 12 }}>
           {loading ? 'Saving...' : 'Create profile'}
         </button>
       </div>

@@ -12,11 +12,7 @@ export default function Discover({ profile }) {
     async function load() {
       const { data: profs } = await supabase.from('profiles').select('*').eq('role', 'ps').neq('id', profile.id)
       setAdvisors(profs || [])
-
-      const { data: follows } = await supabase
-        .from('follows')
-        .select('target_id')
-        .eq('follower_id', profile.id)
+      const { data: follows } = await supabase.from('follows').select('target_id').eq('follower_id', profile.id)
       setFollowing(new Set((follows || []).map((f) => f.target_id)))
       setLoading(false)
     }
@@ -42,9 +38,7 @@ export default function Discover({ profile }) {
       )}
       {loading && <p style={{ textAlign: 'center', color: 'var(--text-soft)', padding: '40px 0' }}>Loading...</p>}
       {!loading && advisors.length === 0 && (
-        <p style={{ textAlign: 'center', color: 'var(--text-soft)', padding: '40px 0', fontSize: 14 }}>
-          No other advisors have joined yet.
-        </p>
+        <p style={{ textAlign: 'center', color: 'var(--text-soft)', padding: '40px 0', fontSize: 14 }}>No other advisors have joined yet.</p>
       )}
       <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
         {advisors.map((a) => {
@@ -60,19 +54,11 @@ export default function Discover({ profile }) {
               </div>
               {a.bio && <p style={{ fontSize: 14, color: 'var(--text-soft)', marginBottom: 12 }}>{a.bio}</p>}
               <div style={{ display: 'flex', gap: 8 }}>
-                <button
-                  onClick={() => toggleFollow(a.id)}
-                  className={isFollowing ? 'btn-ghost' : 'btn-gold'}
-                  style={{ flex: 1, padding: '8px', borderRadius: 8, fontSize: 13, fontWeight: 600 }}
-                >
+                <button onClick={() => toggleFollow(a.id)} className={isFollowing ? 'btn-ghost' : 'btn-gold'} style={{ flex: 1, padding: '8px', borderRadius: 8, fontSize: 13, fontWeight: 600 }}>
                   {isFollowing ? 'Following' : 'Follow'}
                 </button>
                 {profile.role !== 'ps' && (
-                  <button
-                    onClick={() => setBookingAdvisor(a)}
-                    className="btn-ghost"
-                    style={{ flex: 1, padding: '8px', borderRadius: 8, fontSize: 13, fontWeight: 600 }}
-                  >
+                  <button onClick={() => setBookingAdvisor(a)} className="btn-ghost" style={{ flex: 1, padding: '8px', borderRadius: 8, fontSize: 13, fontWeight: 600 }}>
                     Book session
                   </button>
                 )}
@@ -82,9 +68,7 @@ export default function Discover({ profile }) {
         })}
       </div>
 
-      {bookingAdvisor && (
-        <BookingModal advisor={bookingAdvisor} profile={profile} onClose={() => setBookingAdvisor(null)} />
-      )}
+      {bookingAdvisor && <BookingModal advisor={bookingAdvisor} profile={profile} onClose={() => setBookingAdvisor(null)} />}
     </div>
   )
 }

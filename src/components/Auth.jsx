@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { supabase } from '../supabaseClient'
 
 export default function Auth() {
-  const [mode, setMode] = useState('login') // 'login' | 'signup' | 'forgot'
+  const [mode, setMode] = useState('login')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [loading, setLoading] = useState(false)
@@ -53,31 +53,13 @@ export default function Auth() {
       </div>
 
       <form onSubmit={handleSubmit} className="card" style={{ padding: 24 }}>
-        <label style={{ fontSize: 13, color: 'var(--text-soft)', display: 'block', marginBottom: 6 }}>
-          Email
-        </label>
-        <input
-          type="email"
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-          placeholder="you@email.com"
-          autoComplete="email"
-          style={{ marginBottom: 14 }}
-        />
+        <label style={{ fontSize: 13, color: 'var(--text-soft)', display: 'block', marginBottom: 6 }}>Email</label>
+        <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@email.com" autoComplete="email" style={{ marginBottom: 14 }} />
 
         {mode !== 'forgot' && (
           <>
-            <label style={{ fontSize: 13, color: 'var(--text-soft)', display: 'block', marginBottom: 6 }}>
-              Password
-            </label>
-            <input
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              placeholder="At least 6 characters"
-              autoComplete={mode === 'login' ? 'current-password' : 'new-password'}
-              style={{ marginBottom: 14 }}
-            />
+            <label style={{ fontSize: 13, color: 'var(--text-soft)', display: 'block', marginBottom: 6 }}>Password</label>
+            <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="At least 6 characters" autoComplete={mode === 'login' ? 'current-password' : 'new-password'} style={{ marginBottom: 14 }} />
           </>
         )}
 

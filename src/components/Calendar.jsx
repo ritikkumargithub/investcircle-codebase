@@ -27,12 +27,10 @@ export default function Calendar({ selectedDate, onSelectDate, markedDates, disa
   for (let d = 1; d <= daysInMonth; d++) cells.push(d)
 
   function goPrevMonth() {
-    if (viewMonth === 0) { setViewMonth(11); setViewYear((y) => y - 1) }
-    else setViewMonth((m) => m - 1)
+    if (viewMonth === 0) { setViewMonth(11); setViewYear((y) => y - 1) } else setViewMonth((m) => m - 1)
   }
   function goNextMonth() {
-    if (viewMonth === 11) { setViewMonth(0); setViewYear((y) => y + 1) }
-    else setViewMonth((m) => m + 1)
+    if (viewMonth === 11) { setViewMonth(0); setViewYear((y) => y + 1) } else setViewMonth((m) => m + 1)
   }
 
   return (

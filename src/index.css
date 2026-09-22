@@ -10,14 +10,8 @@
   --text-soft: #9FB8AF;
   color-scheme: dark;
 }
-
 * { box-sizing: border-box; }
-
-html, body, #root {
-  height: 100%;
-  margin: 0;
-}
-
+html, body, #root { height: 100%; margin: 0; }
 body {
   background: var(--bg);
   color: var(--text);
@@ -25,96 +19,46 @@ body {
   padding-top: env(safe-area-inset-top, 0px);
   padding-bottom: env(safe-area-inset-bottom, 0px);
 }
-
 .serif { font-family: 'Fraunces', serif; }
-
-.app-shell {
-  max-width: 720px;
-  margin: 0 auto;
-  padding: 20px 16px 60px;
-}
-
-.card {
-  background: var(--panel);
-  border: 1px solid var(--ring);
-  border-radius: 14px;
-}
-
+.app-shell { max-width: 720px; margin: 0 auto; padding: 20px 16px 60px; }
+.card { background: var(--panel); border: 1px solid var(--ring); border-radius: 14px; }
 .btn-gold {
   background: linear-gradient(180deg, var(--gold-bright), var(--gold));
-  color: #241A05;
-  font-weight: 700;
-  border: none;
-  cursor: pointer;
+  color: #241A05; font-weight: 700; border: none; cursor: pointer;
   transition: filter 0.15s ease, opacity 0.15s ease;
 }
 .btn-gold:hover { filter: brightness(1.05); }
 .btn-gold:disabled { opacity: 0.6; cursor: not-allowed; }
-
 .btn-ghost {
-  background: var(--ring-soft);
-  border: 1px solid var(--ring);
-  color: var(--text);
-  cursor: pointer;
-  transition: background 0.15s ease;
+  background: var(--ring-soft); border: 1px solid var(--ring); color: var(--text);
+  cursor: pointer; transition: background 0.15s ease;
 }
 .btn-ghost:hover { background: var(--ring); }
-
+.btn-ghost:disabled { opacity: 0.5; cursor: not-allowed; }
 input, textarea, select {
-  background: var(--ring-soft);
-  border: 1px solid var(--ring);
-  color: var(--text);
-  border-radius: 8px;
-  padding: 10px 12px;
-  width: 100%;
-  outline: none;
-  font-family: 'Karla', sans-serif;
-  font-size: 14px;
+  background: var(--ring-soft); border: 1px solid var(--ring); color: var(--text);
+  border-radius: 8px; padding: 10px 12px; width: 100%; outline: none;
+  font-family: 'Karla', sans-serif; font-size: 14px;
 }
 input:focus, textarea:focus, select:focus { border-color: var(--gold); }
 ::placeholder { color: var(--text-soft); }
-
 .tab {
-  color: var(--text-soft);
-  border: none;
-  background: none;
-  border-bottom: 2px solid transparent;
-  padding-bottom: 12px;
-  padding-left: 2px;
-  padding-right: 2px;
-  font-size: 14px;
-  font-weight: 500;
-  white-space: nowrap;
-  cursor: pointer;
+  color: var(--text-soft); border: none; background: none; border-bottom: 2px solid transparent;
+  padding-bottom: 12px; padding-left: 2px; padding-right: 2px; font-size: 14px; font-weight: 500;
+  white-space: nowrap; cursor: pointer;
 }
 .tab.active { color: var(--gold-bright); border-bottom: 2px solid var(--gold); }
-
 .badge {
-  font-size: 11px;
-  padding: 2px 8px;
-  border-radius: 999px;
-  border: 1px solid var(--ring);
-  color: var(--text-soft);
-  display: inline-block;
+  font-size: 11px; padding: 2px 8px; border-radius: 999px; border: 1px solid var(--ring);
+  color: var(--text-soft); display: inline-block;
 }
 .badge-gold { border-color: var(--gold); color: var(--gold-bright); }
-
 .error-text { color: #e08585; font-size: 13px; }
-
 a { color: var(--gold-bright); }
-
 .fade-in { animation: fadeIn 0.3s ease; }
-@keyframes fadeIn {
-  from { opacity: 0; transform: translateY(4px); }
-  to { opacity: 1; transform: translateY(0); }
-}
-
+@keyframes fadeIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }
 .spinner {
-  border: 2px solid var(--ring);
-  border-top-color: var(--gold);
-  border-radius: 50%;
-  width: 20px;
-  height: 20px;
-  animation: spin 0.7s linear infinite;
+  border: 2px solid var(--ring); border-top-color: var(--gold); border-radius: 50%;
+  width: 20px; height: 20px; animation: spin 0.7s linear infinite;
 }
 @keyframes spin { to { transform: rotate(360deg); } }

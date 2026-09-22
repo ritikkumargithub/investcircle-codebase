@@ -3,24 +3,18 @@ import { supabase } from '../supabaseClient'
 
 function PeopleList({ title, people, onClose }) {
   return (
-    <div
-      style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16, zIndex: 50 }}
-      onClick={(e) => { if (e.target === e.currentTarget) onClose() }}
-    >
+    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16, zIndex: 50 }} onClick={(e) => { if (e.target === e.currentTarget) onClose() }}>
       <div className="card fade-in" style={{ padding: 20, width: '100%', maxWidth: 360, maxHeight: '70vh', overflowY: 'auto' }}>
         <h3 className="serif" style={{ fontSize: 17, marginBottom: 12 }}>{title}</h3>
         {people.length === 0 && <p style={{ fontSize: 13, color: 'var(--text-soft)' }}>Nobody here yet.</p>}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
           {people.map((p) => (
             <div key={p.id} style={{ fontSize: 14 }}>
-              {p.name}
-              {p.specialization && <span style={{ color: 'var(--text-soft)', fontSize: 12 }}> · {p.specialization}</span>}
+              {p.name}{p.specialization && <span style={{ color: 'var(--text-soft)', fontSize: 12 }}> · {p.specialization}</span>}
             </div>
           ))}
         </div>
-        <button onClick={onClose} className="btn-ghost" style={{ width: '100%', padding: '8px', borderRadius: 8, marginTop: 16, fontSize: 13 }}>
-          Close
-        </button>
+        <button onClick={onClose} className="btn-ghost" style={{ width: '100%', padding: '8px', borderRadius: 8, marginTop: 16, fontSize: 13 }}>Close</button>
       </div>
     </div>
   )
@@ -29,7 +23,7 @@ function PeopleList({ title, people, onClose }) {
 export default function ProfileTab({ profile, onUpdate }) {
   const [followerCount, setFollowerCount] = useState(0)
   const [followingCount, setFollowingCount] = useState(0)
-  const [listOpen, setListOpen] = useState(null) // 'followers' | 'following' | null
+  const [listOpen, setListOpen] = useState(null)
   const [listPeople, setListPeople] = useState([])
 
   const [editing, setEditing] = useState(false)
@@ -41,20 +35,11 @@ export default function ProfileTab({ profile, onUpdate }) {
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
 
-  useEffect(() => {
-    loadCounts()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [profile.id])
+  useEffect(() => { loadCounts() }, [profile.id]) // eslint-disable-line react-hooks/exhaustive-deps
 
   async function loadCounts() {
-    const { count: followers } = await supabase
-      .from('follows')
-      .select('*', { count: 'exact', head: true })
-      .eq('target_id', profile.id)
-    const { count: following } = await supabase
-      .from('follows')
-      .select('*', { count: 'exact', head: true })
-      .eq('follower_id', profile.id)
+    const { count: followers } = await supabase.from('follows').select('*', { count: 'exact', head: true }).eq('target_id', profile.id)
+    const { count: following } = await supabase.from('follows').select('*', { count: 'exact', head: true }).eq('follower_id', profile.id)
     setFollowerCount(followers || 0)
     setFollowingCount(following || 0)
   }
@@ -76,34 +61,19 @@ export default function ProfileTab({ profile, onUpdate }) {
     }
   }
 
-  async function handleLogout() {
-    await supabase.auth.signOut()
-  }
+  async function handleLogout() { await supabase.auth.signOut() }
 
   async function handleSave() {
-    if (!name.trim()) {
-      setError('Name cannot be empty.')
-      return
-    }
+    if (!name.trim()) { setError('Name cannot be empty.'); return }
     setSaving(true)
     setError('')
     const updates = {
       name: name.trim(),
-      ...(profile.role === 'ps'
-        ? {
-            specialization: specialization.trim() || 'General advisory',
-            reg_type: regType,
-            sebi_reg_no: sebiRegNo.trim() || 'Not provided',
-            bio: bio.trim(),
-          }
-        : {}),
+      ...(profile.role === 'ps' ? { specialization: specialization.trim() || 'General advisory', reg_type: regType, sebi_reg_no: sebiRegNo.trim() || 'Not provided', bio: bio.trim() } : {}),
     }
     const { data, error } = await supabase.from('profiles').update(updates).eq('id', profile.id).select().maybeSingle()
     setSaving(false)
-    if (error) {
-      setError(error.message)
-      return
-    }
+    if (error) { setError(error.message); return }
     onUpdate(data)
     setEditing(false)
   }
@@ -112,47 +82,27 @@ export default function ProfileTab({ profile, onUpdate }) {
     return (
       <div className="fade-in card" style={{ padding: 20 }}>
         <h3 className="serif" style={{ fontSize: 18, marginBottom: 16 }}>Edit profile</h3>
-
         <p style={{ fontSize: 12, color: 'var(--text-soft)', marginBottom: 6 }}>Name</p>
         <input value={name} onChange={(e) => setName(e.target.value)} style={{ marginBottom: 14 }} />
-
         {profile.role === 'ps' && (
           <>
             <p style={{ fontSize: 12, color: 'var(--text-soft)', marginBottom: 6 }}>Specialization</p>
             <input value={specialization} onChange={(e) => setSpecialization(e.target.value)} style={{ marginBottom: 14 }} />
-
             <p style={{ fontSize: 12, color: 'var(--text-soft)', marginBottom: 6 }}>Registration type</p>
             <select value={regType} onChange={(e) => setRegType(e.target.value)} style={{ marginBottom: 14 }}>
               <option value="RIA">SEBI Registered Investment Adviser (RIA)</option>
               <option value="RA">SEBI Research Analyst (RA)</option>
             </select>
-
             <p style={{ fontSize: 12, color: 'var(--text-soft)', marginBottom: 6 }}>SEBI Registration No.</p>
             <input value={sebiRegNo} onChange={(e) => setSebiRegNo(e.target.value)} style={{ marginBottom: 14 }} />
-
             <p style={{ fontSize: 12, color: 'var(--text-soft)', marginBottom: 6 }}>Bio</p>
             <textarea value={bio} onChange={(e) => setBio(e.target.value)} rows={3} style={{ marginBottom: 4 }} />
           </>
         )}
-
         {error && <p className="error-text" style={{ margin: '12px 0' }}>{error}</p>}
-
         <div style={{ display: 'flex', gap: 8, marginTop: 16 }}>
-          <button
-            onClick={() => { setEditing(false); setError('') }}
-            className="btn-ghost"
-            style={{ flex: 1, padding: '10px', borderRadius: 8, fontSize: 14 }}
-          >
-            Cancel
-          </button>
-          <button
-            onClick={handleSave}
-            disabled={saving}
-            className="btn-gold"
-            style={{ flex: 1, padding: '10px', borderRadius: 8, fontSize: 14, fontWeight: 700 }}
-          >
-            {saving ? 'Saving...' : 'Save changes'}
-          </button>
+          <button onClick={() => { setEditing(false); setError('') }} className="btn-ghost" style={{ flex: 1, padding: '10px', borderRadius: 8, fontSize: 14 }}>Cancel</button>
+          <button onClick={handleSave} disabled={saving} className="btn-gold" style={{ flex: 1, padding: '10px', borderRadius: 8, fontSize: 14, fontWeight: 700 }}>{saving ? 'Saving...' : 'Save changes'}</button>
         </div>
       </div>
     )
@@ -163,9 +113,7 @@ export default function ProfileTab({ profile, onUpdate }) {
       <div className="card" style={{ padding: 20 }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
           <div className="serif" style={{ fontSize: 20 }}>{profile.name}</div>
-          <span className={`badge ${profile.role === 'ps' ? 'badge-gold' : ''}`}>
-            {profile.role === 'ps' ? profile.reg_type : 'Investor'}
-          </span>
+          <span className={`badge ${profile.role === 'ps' ? 'badge-gold' : ''}`}>{profile.role === 'ps' ? profile.reg_type : 'Investor'}</span>
         </div>
 
         <div style={{ display: 'flex', gap: 20, marginBottom: 16 }}>
@@ -181,12 +129,8 @@ export default function ProfileTab({ profile, onUpdate }) {
 
         {profile.role === 'ps' ? (
           <>
-            <p style={{ fontSize: 14, marginBottom: 4 }}>
-              <span style={{ color: 'var(--text-soft)' }}>Specialization:</span> {profile.specialization}
-            </p>
-            <p style={{ fontSize: 14, marginBottom: 4 }}>
-              <span style={{ color: 'var(--text-soft)' }}>SEBI Reg No:</span> {profile.sebi_reg_no}
-            </p>
+            <p style={{ fontSize: 14, marginBottom: 4 }}><span style={{ color: 'var(--text-soft)' }}>Specialization:</span> {profile.specialization}</p>
+            <p style={{ fontSize: 14, marginBottom: 4 }}><span style={{ color: 'var(--text-soft)' }}>SEBI Reg No:</span> {profile.sebi_reg_no}</p>
             {profile.bio && <p style={{ fontSize: 14, color: 'var(--text-soft)', marginTop: 8 }}>{profile.bio}</p>}
           </>
         ) : (
@@ -194,28 +138,10 @@ export default function ProfileTab({ profile, onUpdate }) {
         )}
       </div>
 
-      <button
-        onClick={() => setEditing(true)}
-        className="btn-gold"
-        style={{ width: '100%', padding: '12px', borderRadius: 8, marginTop: 16, fontSize: 14, fontWeight: 700 }}
-      >
-        Edit profile
-      </button>
-      <button
-        onClick={handleLogout}
-        className="btn-ghost"
-        style={{ width: '100%', padding: '12px', borderRadius: 8, marginTop: 10, fontSize: 14, fontWeight: 600 }}
-      >
-        Log out
-      </button>
+      <button onClick={() => setEditing(true)} className="btn-gold" style={{ width: '100%', padding: '12px', borderRadius: 8, marginTop: 16, fontSize: 14, fontWeight: 700 }}>Edit profile</button>
+      <button onClick={handleLogout} className="btn-ghost" style={{ width: '100%', padding: '12px', borderRadius: 8, marginTop: 10, fontSize: 14, fontWeight: 600 }}>Log out</button>
 
-      {listOpen && (
-        <PeopleList
-          title={listOpen === 'followers' ? 'Followers' : 'Following'}
-          people={listPeople}
-          onClose={() => setListOpen(null)}
-        />
-      )}
+      {listOpen && <PeopleList title={listOpen === 'followers' ? 'Followers' : 'Following'} people={listPeople} onClose={() => setListOpen(null)} />}
     </div>
   )
 }

@@ -1,7 +1,8 @@
 -- InvestCircle database schema for Supabase
--- Run this once in your Supabase project's SQL Editor (Project -> SQL Editor -> New query)
+-- This file reflects everything already applied to the live project.
+-- Run this once (in order) in a fresh project's SQL Editor if setting up from scratch.
 
--- 1) PROFILES: one row per user, linked to Supabase's built-in auth.users
+-- 1) PROFILES
 create table if not exists profiles (
   id uuid primary key references auth.users(id) on delete cascade,
   role text not null check (role in ('retail', 'ps')),
@@ -13,17 +14,18 @@ create table if not exists profiles (
   created_at timestamptz not null default now()
 );
 
--- 2) POSTS: advisor updates on the feed
+-- 2) POSTS (with optional image)
 create table if not exists posts (
   id uuid primary key default gen_random_uuid(),
   author_id uuid not null references profiles(id) on delete cascade,
   author_name text not null,
   author_specialization text,
   content text not null,
+  image_url text,
   created_at timestamptz not null default now()
 );
 
--- 3) FOLLOWS: retail users following advisors
+-- 3) FOLLOWS (retail -> advisor, or advisor -> advisor; never -> retail, enforced in app)
 create table if not exists follows (
   follower_id uuid not null references profiles(id) on delete cascade,
   target_id uuid not null references profiles(id) on delete cascade,
@@ -31,83 +33,20 @@ create table if not exists follows (
   primary key (follower_id, target_id)
 );
 
--- 4) BOOKINGS: session requests between retail users and advisors
+-- 4) BOOKINGS (1:1 sessions between a retail user and an advisor)
 create table if not exists bookings (
   id uuid primary key default gen_random_uuid(),
   retail_id uuid not null references profiles(id) on delete cascade,
   retail_name text not null,
   ps_id uuid not null references profiles(id) on delete cascade,
   ps_name text not null,
-  preferred_time text not null,
+  preferred_time text,
+  booking_date date,
+  booking_time text,
   note text,
   status text not null default 'pending' check (status in ('pending', 'confirmed', 'declined')),
   created_at timestamptz not null default now()
 );
-
--- ================== ROW LEVEL SECURITY ==================
--- This is what actually keeps one user's data safe from another.
--- Without these policies, RLS blocks ALL access by default once enabled.
-
-alter table profiles enable row level security;
-alter table posts enable row level security;
-alter table follows enable row level security;
-alter table bookings enable row level security;
-
--- Profiles: anyone signed in can read all profiles (needed to browse advisors),
--- but you can only insert/update your OWN profile row.
-create policy "Profiles are viewable by everyone signed in"
-  on profiles for select
-  using (auth.role() = 'authenticated');
-
-create policy "Users can insert their own profile"
-  on profiles for insert
-  with check (auth.uid() = id);
-
-create policy "Users can update their own profile"
-  on profiles for update
-  using (auth.uid() = id);
-
--- Posts: anyone signed in can read; only the author can insert as themselves.
-create policy "Posts are viewable by everyone signed in"
-  on posts for select
-  using (auth.role() = 'authenticated');
-
-create policy "Users can create their own posts"
-  on posts for insert
-  with check (auth.uid() = author_id);
-
--- Follows: a user can see and manage only their own follow relationships,
--- plus advisors can see who follows them (optional: kept simple here — everyone
--- signed in can read follow rows, but only write their own).
-create policy "Follows are viewable by everyone signed in"
-  on follows for select
-  using (auth.role() = 'authenticated');
-
-create policy "Users can create their own follow"
-  on follows for insert
-  with check (auth.uid() = follower_id);
-
-create policy "Users can delete their own follow"
-  on follows for delete
-  using (auth.uid() = follower_id);
-
--- Bookings: only the two people involved (the retail user and the advisor) can
--- see or touch a given booking row.
-create policy "Bookings are viewable by the two people involved"
-  on bookings for select
-  using (auth.uid() = retail_id or auth.uid() = ps_id);
-
-create policy "Retail users can create a booking as themselves"
-  on bookings for insert
-  with check (auth.uid() = retail_id);
-
-create policy "Advisors can update the status of their own bookings"
-  on bookings for update
-  using (auth.uid() = ps_id);
-
--- Realtime: enable so the app's live feed/bookings subscriptions work
-alter publication supabase_realtime add table posts;
-alter publication supabase_realtime add table bookings;
 
 -- 5) LIKES and COMMENTS on posts
 create table if not exists post_likes (
@@ -126,47 +65,79 @@ create table if not exists post_comments (
   created_at timestamptz not null default now()
 );
 
+-- 6) GROUP SESSIONS (advisor-hosted, capacity-limited)
+create table if not exists sessions (
+  id uuid primary key default gen_random_uuid(),
+  ps_id uuid not null references profiles(id) on delete cascade,
+  ps_name text not null,
+  title text not null,
+  description text,
+  session_date date not null,
+  session_time text not null,
+  capacity int not null check (capacity >= 1),
+  status text not null default 'scheduled' check (status in ('scheduled', 'cancelled')),
+  created_at timestamptz not null default now()
+);
+
+create table if not exists session_registrations (
+  id uuid primary key default gen_random_uuid(),
+  session_id uuid not null references sessions(id) on delete cascade,
+  retail_id uuid not null references profiles(id) on delete cascade,
+  retail_name text not null,
+  created_at timestamptz not null default now(),
+  unique (session_id, retail_id)
+);
+
+-- ================== ROW LEVEL SECURITY ==================
+alter table profiles enable row level security;
+alter table posts enable row level security;
+alter table follows enable row level security;
+alter table bookings enable row level security;
 alter table post_likes enable row level security;
 alter table post_comments enable row level security;
+alter table sessions enable row level security;
+alter table session_registrations enable row level security;
 
-create policy "Likes are viewable by everyone signed in"
-  on post_likes for select
-  using (auth.role() = 'authenticated');
+create policy "Profiles are viewable by everyone signed in" on profiles for select using (auth.role() = 'authenticated');
+create policy "Users can insert their own profile" on profiles for insert with check (auth.uid() = id);
+create policy "Users can update their own profile" on profiles for update using (auth.uid() = id) with check (auth.uid() = id);
 
-create policy "Users can like as themselves"
-  on post_likes for insert
-  with check (auth.uid() = user_id);
+create policy "Posts are viewable by everyone signed in" on posts for select using (auth.role() = 'authenticated');
+create policy "Users can create their own posts" on posts for insert with check (auth.uid() = author_id);
 
-create policy "Users can unlike their own like"
-  on post_likes for delete
-  using (auth.uid() = user_id);
+create policy "Follows are viewable by everyone signed in" on follows for select using (auth.role() = 'authenticated');
+create policy "Users can create their own follow" on follows for insert with check (auth.uid() = follower_id);
+create policy "Users can delete their own follow" on follows for delete using (auth.uid() = follower_id);
 
-create policy "Comments are viewable by everyone signed in"
-  on post_comments for select
-  using (auth.role() = 'authenticated');
+create policy "Bookings are viewable by the two people involved" on bookings for select using (auth.uid() = retail_id or auth.uid() = ps_id);
+create policy "Retail users can create a booking as themselves" on bookings for insert with check (auth.uid() = retail_id);
+create policy "Advisors can update the status of their own bookings" on bookings for update using (auth.uid() = ps_id);
 
-create policy "Users can comment as themselves"
-  on post_comments for insert
-  with check (auth.uid() = author_id);
+create policy "Likes are viewable by everyone signed in" on post_likes for select using (auth.role() = 'authenticated');
+create policy "Users can like as themselves" on post_likes for insert with check (auth.uid() = user_id);
+create policy "Users can unlike their own like" on post_likes for delete using (auth.uid() = user_id);
 
+create policy "Comments are viewable by everyone signed in" on post_comments for select using (auth.role() = 'authenticated');
+create policy "Users can comment as themselves" on post_comments for insert with check (auth.uid() = author_id);
+
+create policy "Sessions are viewable by everyone signed in" on sessions for select using (auth.role() = 'authenticated');
+create policy "Advisors can create their own sessions" on sessions for insert with check (auth.uid() = ps_id);
+create policy "Advisors can update their own sessions" on sessions for update using (auth.uid() = ps_id);
+
+create policy "Registrations are viewable by everyone signed in" on session_registrations for select using (auth.role() = 'authenticated');
+create policy "Retail users can register themselves" on session_registrations for insert with check (auth.uid() = retail_id);
+create policy "Retail users can cancel their own registration" on session_registrations for delete using (auth.uid() = retail_id);
+
+-- ================== REALTIME ==================
+alter publication supabase_realtime add table posts;
+alter publication supabase_realtime add table bookings;
 alter publication supabase_realtime add table post_likes;
 alter publication supabase_realtime add table post_comments;
+alter publication supabase_realtime add table sessions;
+alter publication supabase_realtime add table session_registrations;
 
--- 6) Image support on posts + proper calendar fields on bookings
-alter table posts add column if not exists image_url text;
-alter table bookings add column if not exists booking_date date;
-alter table bookings add column if not exists booking_time text;
+-- ================== STORAGE ==================
+insert into storage.buckets (id, name, public) values ('post-images', 'post-images', true) on conflict (id) do nothing;
 
--- 7) Storage bucket for post images
-insert into storage.buckets (id, name, public)
-values ('post-images', 'post-images', true)
-on conflict (id) do nothing;
-
-create policy "Public read for post-images"
-  on storage.objects for select
-  using (bucket_id = 'post-images');
-
-create policy "Authenticated users can upload post images"
-  on storage.objects for insert
-  to authenticated
-  with check (bucket_id = 'post-images');
+create policy "Public read for post-images" on storage.objects for select using (bucket_id = 'post-images');
+create policy "Authenticated users can upload post images" on storage.objects for insert to authenticated with check (bucket_id = 'post-images');
