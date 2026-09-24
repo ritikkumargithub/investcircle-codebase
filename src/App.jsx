@@ -84,7 +84,7 @@ export default function App() {
       {tab === 'discover' && <Discover profile={profile} />}
       {tab === 'sessions' && <Sessions profile={profile} />}
       {tab === 'bookings' && <Bookings profile={profile} />}
-      {tab === 'wallet' && profile.role !== 'ps' && <Wallet profile={profile} />}
+      {tab === 'wallet' && profile.role !== 'ps' && <Wallet profile={profile} onUpdate={setProfile} />}
       {tab === 'profile' && <ProfileTab profile={profile} onUpdate={setProfile} />}
     </div>
   )

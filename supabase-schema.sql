@@ -135,6 +135,8 @@ alter publication supabase_realtime add table post_likes;
 alter publication supabase_realtime add table post_comments;
 alter publication supabase_realtime add table sessions;
 alter publication supabase_realtime add table session_registrations;
+alter publication supabase_realtime add table wallet_transactions;
+alter publication supabase_realtime add table profiles;
 
 -- ================== STORAGE ==================
 insert into storage.buckets (id, name, public) values ('post-images', 'post-images', true) on conflict (id) do nothing;

@@ -21,7 +21,7 @@ function fmtDate(iso) {
   } catch { return '' }
 }
 
-export default function Wallet({ profile }) {
+export default function Wallet({ profile, onUpdate }) {
   const [transactions, setTransactions] = useState([])
   const [loading, setLoading] = useState(true)
   const [showTopUp, setShowTopUp] = useState(false)
@@ -73,12 +73,12 @@ export default function Wallet({ profile }) {
         ))}
       </div>
 
-      {showTopUp && <TopUpModal profile={profile} onClose={() => setShowTopUp(false)} />}
+      {showTopUp && <TopUpModal profile={profile} onClose={() => setShowTopUp(false)} onUpdate={onUpdate} />}
     </div>
   )
 }
 
-function TopUpModal({ profile, onClose }) {
+function TopUpModal({ profile, onClose, onUpdate }) {
   const [customAmount, setCustomAmount] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
@@ -87,12 +87,14 @@ function TopUpModal({ profile, onClose }) {
     if (!amount || amount <= 0) { setError('Enter a valid amount.'); return }
     setLoading(true)
     setError('')
-    const { error: updateError } = await supabase.from('profiles').update({ wallet_balance: profile.wallet_balance + amount }).eq('id', profile.id)
+    const newBalance = profile.wallet_balance + amount
+    const { data, error: updateError } = await supabase.from('profiles').update({ wallet_balance: newBalance }).eq('id', profile.id).select().maybeSingle()
     if (updateError) { setLoading(false); setError(updateError.message); return }
     await supabase.from('wallet_transactions').insert({
       user_id: profile.id, type: 'topup', amount, description: 'Wallet top-up (dummy payment)',
     })
     setLoading(false)
+    if (onUpdate && data) onUpdate(data) // reflect instantly; realtime sub will also confirm it
     onClose()
   }
 
