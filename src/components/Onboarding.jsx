@@ -56,10 +56,10 @@ export default function Onboarding({ userId, onDone }) {
         <p style={{ fontSize: 13, color: 'var(--text-soft)', marginBottom: 8 }}>I am a...</p>
         <div style={{ display: 'flex', gap: 12, marginBottom: 20 }}>
           <button type="button" className={role === 'retail' ? 'btn-gold' : 'btn-ghost'} onClick={() => setRole('retail')} style={{ flex: 1, padding: '12px', borderRadius: 8, fontSize: 14 }}>
-            Retail Investor
+            Investor
           </button>
           <button type="button" className={role === 'ps' ? 'btn-gold' : 'btn-ghost'} onClick={() => setRole('ps')} style={{ flex: 1, padding: '12px', borderRadius: 8, fontSize: 14 }}>
-            Portfolio Provider
+            Advisor
           </button>
         </div>
 
