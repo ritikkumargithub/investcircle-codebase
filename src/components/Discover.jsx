@@ -53,6 +53,9 @@ export default function Discover({ profile }) {
                 <span className="badge badge-gold">{a.reg_type}</span>
               </div>
               {a.bio && <p style={{ fontSize: 14, color: 'var(--text-soft)', marginBottom: 12 }}>{a.bio}</p>}
+              {profile.role !== 'ps' && (
+                <p style={{ fontSize: 12, color: 'var(--text-soft)', marginBottom: 12 }}>1:1 session: <strong style={{ color: 'var(--gold-bright)' }}>₹{a.session_price}</strong></p>
+              )}
               <div style={{ display: 'flex', gap: 8 }}>
                 <button onClick={() => toggleFollow(a.id)} className={isFollowing ? 'btn-ghost' : 'btn-gold'} style={{ flex: 1, padding: '8px', borderRadius: 8, fontSize: 13, fontWeight: 600 }}>
                   {isFollowing ? 'Following' : 'Follow'}

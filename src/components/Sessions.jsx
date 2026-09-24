@@ -14,6 +14,7 @@ export default function Sessions({ profile }) {
   const [loading, setLoading] = useState(true)
   const [showCreate, setShowCreate] = useState(false)
   const [activeCall, setActiveCall] = useState(null)
+  const [regError, setRegError] = useState({})
   const [, setTick] = useState(0)
   const completingRef = useRef(new Set())
 
@@ -60,13 +61,15 @@ export default function Sessions({ profile }) {
   }, [sessions, profile.id, profile.role])
 
   async function handleRegister(sessionId) {
-    await supabase.from('session_registrations').insert({ session_id: sessionId, retail_id: profile.id, retail_name: profile.name })
+    setRegError((prev) => ({ ...prev, [sessionId]: '' }))
+    const { error } = await supabase.rpc('register_for_session', { p_session_id: sessionId })
+    if (error) setRegError((prev) => ({ ...prev, [sessionId]: error.message }))
   }
   async function handleUnregister(sessionId) {
-    await supabase.from('session_registrations').delete().eq('session_id', sessionId).eq('retail_id', profile.id)
+    await supabase.rpc('cancel_registration', { p_session_id: sessionId })
   }
   async function handleCancelSession(sessionId) {
-    await supabase.from('sessions').update({ status: 'cancelled' }).eq('id', sessionId)
+    await supabase.rpc('cancel_session', { p_session_id: sessionId })
   }
 
   const scheduled = useMemo(() => sessions.filter((s) => s.status === 'scheduled'), [sessions])
@@ -107,6 +110,7 @@ export default function Sessions({ profile }) {
               key={s.id} s={s} registeredCount={count} isRetailViewer={profile.role !== 'ps'} full={full} registered={registered}
               onRegister={() => handleRegister(s.id)} onUnregister={() => handleUnregister(s.id)}
               onJoinCall={registered ? () => setActiveCall(s) : undefined}
+              regError={regError[s.id]}
             />
           )
         })}
@@ -118,7 +122,7 @@ export default function Sessions({ profile }) {
   )
 }
 
-function SessionCard({ s, registeredCount, isOwner, isRetailViewer, full, registered, onRegister, onUnregister, onCancel, onJoinCall }) {
+function SessionCard({ s, registeredCount, isOwner, isRetailViewer, full, registered, onRegister, onUnregister, onCancel, onJoinCall, regError }) {
   const windowStatus = getWindowStatus(s.session_date, s.session_time, s.duration_minutes)
   const countdown = formatCountdown(s.session_date, s.session_time)
 
@@ -129,10 +133,14 @@ function SessionCard({ s, registeredCount, isOwner, isRetailViewer, full, regist
           <div style={{ fontWeight: 600 }}>{s.title}</div>
           <div style={{ fontSize: 12, color: 'var(--text-soft)', marginTop: 2 }}>Hosted by {s.ps_name}</div>
         </div>
-        <span className={`badge ${full ? 'badge-gold' : ''}`}>{registeredCount}/{s.capacity} spots</span>
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 4 }}>
+          <span className="badge badge-gold">{s.price ? `₹${s.price}` : 'Free'}</span>
+          <span className={`badge ${full ? 'badge-gold' : ''}`}>{registeredCount}/{s.capacity} spots</span>
+        </div>
       </div>
       {s.description && <p style={{ fontSize: 14, color: 'var(--text-soft)', marginBottom: 8 }}>{s.description}</p>}
       <p style={{ fontSize: 12, color: 'var(--text-soft)', marginBottom: 10 }}>{s.session_date} · {s.session_time} · {s.duration_minutes} min</p>
+      {regError && <p className="error-text" style={{ marginBottom: 10 }}>{regError}</p>}
 
       <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
         {isOwner && windowStatus === 'live' && (
@@ -149,7 +157,7 @@ function SessionCard({ s, registeredCount, isOwner, isRetailViewer, full, regist
 
         {isRetailViewer && !registered && (
           <button onClick={onRegister} disabled={full} className="btn-gold" style={{ flex: 1, padding: '8px', borderRadius: 8, fontSize: 13, fontWeight: 600 }}>
-            {full ? 'Full' : 'Register'}
+            {full ? 'Full' : s.price ? `Pay ₹${s.price} & Register` : 'Register'}
           </button>
         )}
         {isRetailViewer && registered && windowStatus === 'live' && (
@@ -174,6 +182,7 @@ function CreateSessionModal({ profile, onClose }) {
   const [date, setDate] = useState(toISODate(new Date()))
   const [time, setTime] = useState(TIME_SLOTS[0])
   const [duration, setDuration] = useState(30)
+  const [price, setPrice] = useState(0)
   const [capacity, setCapacity] = useState(10)
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
@@ -184,7 +193,7 @@ function CreateSessionModal({ profile, onClose }) {
     setLoading(true)
     const { error } = await supabase.from('sessions').insert({
       ps_id: profile.id, ps_name: profile.name, title: title.trim(), description: description.trim(),
-      session_date: date, session_time: time, duration_minutes: duration, capacity: Number(capacity),
+      session_date: date, session_time: time, duration_minutes: duration, capacity: Number(capacity), price: Number(price) || 0,
     })
     setLoading(false)
     if (error) { setError(error.message); return }
@@ -217,6 +226,9 @@ function CreateSessionModal({ profile, onClose }) {
 
         <p style={{ fontSize: 12, color: 'var(--text-soft)', marginBottom: 8 }}>Capacity (max people who can join)</p>
         <input type="number" min="1" value={capacity} onChange={(e) => setCapacity(e.target.value)} style={{ marginBottom: 12 }} />
+
+        <p style={{ fontSize: 12, color: 'var(--text-soft)', marginBottom: 8 }}>Price per person (₹, 0 for free)</p>
+        <input type="number" min="0" value={price} onChange={(e) => setPrice(e.target.value)} style={{ marginBottom: 12 }} />
 
         {error && <p className="error-text" style={{ marginBottom: 12 }}>{error}</p>}
         <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>

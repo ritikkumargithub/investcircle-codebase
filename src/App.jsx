@@ -6,6 +6,7 @@ import Feed from './components/Feed'
 import Discover from './components/Discover'
 import Bookings from './components/Bookings'
 import Sessions from './components/Sessions'
+import Wallet from './components/Wallet'
 import ProfileTab from './components/ProfileTab'
 
 export default function App() {
@@ -35,6 +36,19 @@ export default function App() {
     return () => { cancelled = true }
   }, [session])
 
+  // Keep wallet balance / profile fields live, even when changed by another party's action
+  // (e.g. an advisor declining a booking triggers a refund on the investor's own row).
+  useEffect(() => {
+    if (!session) return
+    const channel = supabase
+      .channel(`profile-sync-${session.user.id}`)
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'profiles', filter: `id=eq.${session.user.id}` }, (payload) => {
+        setProfile(payload.new)
+      })
+      .subscribe()
+    return () => supabase.removeChannel(channel)
+  }, [session])
+
   if (session === undefined) return <CenteredMessage>Loading...</CenteredMessage>
   if (!session) return <div className="app-shell"><Auth /></div>
   if (profile === undefined) return <CenteredMessage>Loading your profile...</CenteredMessage>
@@ -45,6 +59,7 @@ export default function App() {
     { id: 'discover', label: 'Discover' },
     { id: 'sessions', label: 'Sessions' },
     { id: 'bookings', label: profile.role === 'ps' ? 'Requests' : 'My Bookings' },
+    ...(profile.role !== 'ps' ? [{ id: 'wallet', label: 'Wallet' }] : []),
     { id: 'profile', label: 'Profile' },
   ]
 
@@ -69,6 +84,7 @@ export default function App() {
       {tab === 'discover' && <Discover profile={profile} />}
       {tab === 'sessions' && <Sessions profile={profile} />}
       {tab === 'bookings' && <Bookings profile={profile} />}
+      {tab === 'wallet' && profile.role !== 'ps' && <Wallet profile={profile} />}
       {tab === 'profile' && <ProfileTab profile={profile} onUpdate={setProfile} />}
     </div>
   )

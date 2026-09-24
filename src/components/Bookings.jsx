@@ -44,6 +44,11 @@ export default function Bookings({ profile }) {
   }, [bookings])
 
   async function setStatus(id, status) {
+    if (status === 'declined') {
+      const { error } = await supabase.rpc('decline_booking', { p_booking_id: id })
+      if (error) console.error(error)
+      return
+    }
     await supabase.from('bookings').update({ status }).eq('id', id)
   }
 
@@ -123,7 +128,9 @@ function BookingCard({ b, profile, setStatus, onJoinCall, showDate }) {
         {showDate && b.booking_date ? `${b.booking_date} · ` : ''}
         {b.booking_time ? b.booking_time : b.preferred_time}
         {b.duration_minutes ? ` · ${b.duration_minutes} min` : ''}
+        {b.price ? ` · ₹${b.price}` : ''}
       </p>
+      {b.payment_status === 'refunded' && <p style={{ fontSize: 11, color: 'var(--gold-bright)', marginBottom: 4 }}>Refunded to wallet</p>}
       {b.note && <p style={{ fontSize: 14, marginBottom: 8 }}>{b.note}</p>}
 
       <div style={{ display: 'flex', gap: 8, marginTop: 8, flexWrap: 'wrap' }}>

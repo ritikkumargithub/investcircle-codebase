@@ -32,6 +32,7 @@ export default function ProfileTab({ profile, onUpdate }) {
   const [regType, setRegType] = useState(profile.reg_type || 'RIA')
   const [sebiRegNo, setSebiRegNo] = useState(profile.sebi_reg_no || '')
   const [bio, setBio] = useState(profile.bio || '')
+  const [sessionPrice, setSessionPrice] = useState(profile.session_price || 0)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
 
@@ -69,7 +70,7 @@ export default function ProfileTab({ profile, onUpdate }) {
     setError('')
     const updates = {
       name: name.trim(),
-      ...(profile.role === 'ps' ? { specialization: specialization.trim() || 'General advisory', reg_type: regType, sebi_reg_no: sebiRegNo.trim() || 'Not provided', bio: bio.trim() } : {}),
+      ...(profile.role === 'ps' ? { specialization: specialization.trim() || 'General advisory', reg_type: regType, sebi_reg_no: sebiRegNo.trim() || 'Not provided', bio: bio.trim(), session_price: Number(sessionPrice) || 0 } : {}),
     }
     const { data, error } = await supabase.from('profiles').update(updates).eq('id', profile.id).select().maybeSingle()
     setSaving(false)
@@ -96,7 +97,9 @@ export default function ProfileTab({ profile, onUpdate }) {
             <p style={{ fontSize: 12, color: 'var(--text-soft)', marginBottom: 6 }}>SEBI Registration No.</p>
             <input value={sebiRegNo} onChange={(e) => setSebiRegNo(e.target.value)} style={{ marginBottom: 14 }} />
             <p style={{ fontSize: 12, color: 'var(--text-soft)', marginBottom: 6 }}>Bio</p>
-            <textarea value={bio} onChange={(e) => setBio(e.target.value)} rows={3} style={{ marginBottom: 4 }} />
+            <textarea value={bio} onChange={(e) => setBio(e.target.value)} rows={3} style={{ marginBottom: 14 }} />
+            <p style={{ fontSize: 12, color: 'var(--text-soft)', marginBottom: 6 }}>Price for a 1:1 session (₹)</p>
+            <input type="number" min="0" value={sessionPrice} onChange={(e) => setSessionPrice(e.target.value)} style={{ marginBottom: 4 }} />
           </>
         )}
         {error && <p className="error-text" style={{ margin: '12px 0' }}>{error}</p>}
@@ -131,10 +134,21 @@ export default function ProfileTab({ profile, onUpdate }) {
           <>
             <p style={{ fontSize: 14, marginBottom: 4 }}><span style={{ color: 'var(--text-soft)' }}>Specialization:</span> {profile.specialization}</p>
             <p style={{ fontSize: 14, marginBottom: 4 }}><span style={{ color: 'var(--text-soft)' }}>SEBI Reg No:</span> {profile.sebi_reg_no}</p>
+            <p style={{ fontSize: 14, marginBottom: 4 }}><span style={{ color: 'var(--text-soft)' }}>1:1 session price:</span> ₹{profile.session_price}</p>
             {profile.bio && <p style={{ fontSize: 14, color: 'var(--text-soft)', marginTop: 8 }}>{profile.bio}</p>}
+            <div style={{ marginTop: 14, paddingTop: 14, borderTop: '1px solid var(--ring)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <span style={{ fontSize: 13, color: 'var(--text-soft)' }}>Earnings balance</span>
+              <span className="serif" style={{ fontSize: 18, color: 'var(--gold-bright)' }}>₹{profile.wallet_balance}</span>
+            </div>
           </>
         ) : (
-          <p style={{ fontSize: 14, color: 'var(--text-soft)' }}>Following advisors and booking sessions.</p>
+          <>
+            <p style={{ fontSize: 14, color: 'var(--text-soft)', marginBottom: 12 }}>Following advisors and booking sessions.</p>
+            <div style={{ paddingTop: 14, borderTop: '1px solid var(--ring)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <span style={{ fontSize: 13, color: 'var(--text-soft)' }}>Wallet balance</span>
+              <span className="serif" style={{ fontSize: 18, color: 'var(--gold-bright)' }}>₹{profile.wallet_balance}</span>
+            </div>
+          </>
         )}
       </div>
 

@@ -1,6 +1,8 @@
 import { useState } from 'react'
 import { supabase } from '../supabaseClient'
 
+const SIGNUP_BONUS = 100
+
 export default function Onboarding({ userId, onDone }) {
   const [role, setRole] = useState('retail')
   const [name, setName] = useState('')
@@ -8,14 +10,12 @@ export default function Onboarding({ userId, onDone }) {
   const [regType, setRegType] = useState('RIA')
   const [sebiRegNo, setSebiRegNo] = useState('')
   const [bio, setBio] = useState('')
+  const [sessionPrice, setSessionPrice] = useState(500)
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
 
   async function handleSave() {
-    if (!name.trim()) {
-      setError('Please enter your name.')
-      return
-    }
+    if (!name.trim()) { setError('Please enter your name.'); return }
     setLoading(true)
     setError('')
     const profile = {
@@ -26,13 +26,20 @@ export default function Onboarding({ userId, onDone }) {
       reg_type: role === 'ps' ? regType : null,
       sebi_reg_no: role === 'ps' ? (sebiRegNo.trim() || 'Not provided') : null,
       bio: role === 'ps' ? bio.trim() : null,
+      session_price: role === 'ps' ? Number(sessionPrice) || 0 : 0,
+      wallet_balance: role === 'retail' ? SIGNUP_BONUS : 0,
     }
     const { error } = await supabase.from('profiles').insert(profile)
-    setLoading(false)
-    if (error) {
-      setError(error.message)
-      return
+    if (error) { setLoading(false); setError(error.message); return }
+
+    if (role === 'retail') {
+      // Best-effort welcome bonus record; a unique index prevents this from ever duplicating.
+      await supabase.from('wallet_transactions').insert({
+        user_id: userId, type: 'signup_bonus', amount: SIGNUP_BONUS, description: 'Welcome bonus',
+      })
     }
+
+    setLoading(false)
     onDone(profile)
   }
 
@@ -56,6 +63,12 @@ export default function Onboarding({ userId, onDone }) {
           </button>
         </div>
 
+        {role === 'retail' && (
+          <div className="fade-in" style={{ background: 'var(--ring-soft)', border: '1px solid var(--gold)', borderRadius: 10, padding: 12, marginBottom: 18, fontSize: 13, textAlign: 'center' }}>
+            🎁 You'll get <strong style={{ color: 'var(--gold-bright)' }}>₹{SIGNUP_BONUS} in wallet coins</strong> free when you sign up
+          </div>
+        )}
+
         <p style={{ fontSize: 13, color: 'var(--text-soft)', marginBottom: 6 }}>Name</p>
         <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Your full name" style={{ marginBottom: 16 }} />
 
@@ -68,7 +81,9 @@ export default function Onboarding({ userId, onDone }) {
               <option value="RA">SEBI Research Analyst (RA)</option>
             </select>
             <input value={sebiRegNo} onChange={(e) => setSebiRegNo(e.target.value)} placeholder="SEBI Registration No." style={{ marginBottom: 12 }} />
-            <textarea value={bio} onChange={(e) => setBio(e.target.value)} placeholder="Short bio" rows={3} style={{ marginBottom: 4 }} />
+            <textarea value={bio} onChange={(e) => setBio(e.target.value)} placeholder="Short bio" rows={3} style={{ marginBottom: 12 }} />
+            <p style={{ fontSize: 12, color: 'var(--text-soft)', marginBottom: 6 }}>Price for a 1:1 session (₹)</p>
+            <input type="number" min="0" value={sessionPrice} onChange={(e) => setSessionPrice(e.target.value)} style={{ marginBottom: 4 }} />
           </div>
         )}
 
