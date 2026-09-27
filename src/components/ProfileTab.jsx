@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '../supabaseClient'
+import { ADVISOR_CATEGORIES } from '../categories'
 
 function PeopleList({ title, people, onClose }) {
   return (
@@ -33,6 +34,7 @@ export default function ProfileTab({ profile, onUpdate }) {
   const [sebiRegNo, setSebiRegNo] = useState(profile.sebi_reg_no || '')
   const [bio, setBio] = useState(profile.bio || '')
   const [sessionPrice, setSessionPrice] = useState(profile.session_price || 0)
+  const [categories, setCategories] = useState(profile.categories || [])
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
 
@@ -62,6 +64,10 @@ export default function ProfileTab({ profile, onUpdate }) {
     }
   }
 
+  function toggleCategory(cat) {
+    setCategories((prev) => prev.includes(cat) ? prev.filter((c) => c !== cat) : [...prev, cat])
+  }
+
   async function handleLogout() { await supabase.auth.signOut() }
 
   async function handleSave() {
@@ -70,7 +76,7 @@ export default function ProfileTab({ profile, onUpdate }) {
     setError('')
     const updates = {
       name: name.trim(),
-      ...(profile.role === 'ps' ? { specialization: specialization.trim() || 'General advisory', reg_type: regType, sebi_reg_no: sebiRegNo.trim() || 'Not provided', bio: bio.trim(), session_price: Number(sessionPrice) || 0 } : {}),
+      ...(profile.role === 'ps' ? { specialization: specialization.trim() || 'General advisory', reg_type: regType, sebi_reg_no: sebiRegNo.trim() || 'Not provided', bio: bio.trim(), session_price: Number(sessionPrice) || 0, categories } : {}),
     }
     const { data, error } = await supabase.from('profiles').update(updates).eq('id', profile.id).select().maybeSingle()
     setSaving(false)
@@ -99,7 +105,15 @@ export default function ProfileTab({ profile, onUpdate }) {
             <p style={{ fontSize: 12, color: 'var(--text-soft)', marginBottom: 6 }}>Bio</p>
             <textarea value={bio} onChange={(e) => setBio(e.target.value)} rows={3} style={{ marginBottom: 14 }} />
             <p style={{ fontSize: 12, color: 'var(--text-soft)', marginBottom: 6 }}>Price for a 1:1 session (₹)</p>
-            <input type="number" min="0" value={sessionPrice} onChange={(e) => setSessionPrice(e.target.value)} style={{ marginBottom: 4 }} />
+            <input type="number" min="0" value={sessionPrice} onChange={(e) => setSessionPrice(e.target.value)} style={{ marginBottom: 14 }} />
+            <p style={{ fontSize: 12, color: 'var(--text-soft)', marginBottom: 8 }}>What do you advise on?</p>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 4 }}>
+              {ADVISOR_CATEGORIES.map((cat) => (
+                <button key={cat} type="button" onClick={() => toggleCategory(cat)} className={categories.includes(cat) ? 'btn-gold' : 'btn-ghost'} style={{ padding: '6px 12px', borderRadius: 999, fontSize: 12 }}>
+                  {cat}
+                </button>
+              ))}
+            </div>
           </>
         )}
         {error && <p className="error-text" style={{ margin: '12px 0' }}>{error}</p>}
@@ -135,6 +149,11 @@ export default function ProfileTab({ profile, onUpdate }) {
             <p style={{ fontSize: 14, marginBottom: 4 }}><span style={{ color: 'var(--text-soft)' }}>Specialization:</span> {profile.specialization}</p>
             <p style={{ fontSize: 14, marginBottom: 4 }}><span style={{ color: 'var(--text-soft)' }}>SEBI Reg No:</span> {profile.sebi_reg_no}</p>
             <p style={{ fontSize: 14, marginBottom: 4 }}><span style={{ color: 'var(--text-soft)' }}>1:1 session price:</span> ₹{profile.session_price}</p>
+            {profile.categories?.length > 0 && (
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, margin: '8px 0' }}>
+                {profile.categories.map((c) => <span key={c} className="badge">{c}</span>)}
+              </div>
+            )}
             {profile.bio && <p style={{ fontSize: 14, color: 'var(--text-soft)', marginTop: 8 }}>{profile.bio}</p>}
             <div style={{ marginTop: 14, paddingTop: 14, borderTop: '1px solid var(--ring)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
               <span style={{ fontSize: 13, color: 'var(--text-soft)' }}>Earnings balance</span>

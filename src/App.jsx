@@ -7,6 +7,7 @@ import Discover from './components/Discover'
 import Bookings from './components/Bookings'
 import Sessions from './components/Sessions'
 import Wallet from './components/Wallet'
+import Notes from './components/Notes'
 import ProfileTab from './components/ProfileTab'
 
 export default function App() {
@@ -59,6 +60,7 @@ export default function App() {
     { id: 'discover', label: 'Discover' },
     { id: 'sessions', label: 'Sessions' },
     { id: 'bookings', label: profile.role === 'ps' ? 'Requests' : 'My Bookings' },
+    { id: 'notes', label: 'Notes' },
     ...(profile.role !== 'ps' ? [{ id: 'wallet', label: 'Wallet' }] : []),
     { id: 'profile', label: 'Profile' },
   ]
@@ -84,6 +86,7 @@ export default function App() {
       {tab === 'discover' && <Discover profile={profile} />}
       {tab === 'sessions' && <Sessions profile={profile} />}
       {tab === 'bookings' && <Bookings profile={profile} />}
+      {tab === 'notes' && <Notes profile={profile} />}
       {tab === 'wallet' && profile.role !== 'ps' && <Wallet profile={profile} onUpdate={setProfile} />}
       {tab === 'profile' && <ProfileTab profile={profile} onUpdate={setProfile} />}
     </div>

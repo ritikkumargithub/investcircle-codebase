@@ -321,3 +321,25 @@ grant execute on function decline_booking(uuid) to authenticated;
 grant execute on function register_for_session(uuid) to authenticated;
 grant execute on function cancel_registration(uuid) to authenticated;
 grant execute on function cancel_session(uuid) to authenticated;
+
+-- 11) Realtime fix: profiles must be in the publication for live wallet-balance sync
+alter publication supabase_realtime add table profiles;
+
+-- 12) Personal notes/todo list (private per user)
+create table if not exists notes (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references profiles(id) on delete cascade,
+  content text not null,
+  is_done boolean not null default false,
+  created_at timestamptz not null default now()
+);
+
+alter table notes enable row level security;
+create policy "Users can view their own notes" on notes for select using (auth.uid() = user_id);
+create policy "Users can create their own notes" on notes for insert with check (auth.uid() = user_id);
+create policy "Users can update their own notes" on notes for update using (auth.uid() = user_id);
+create policy "Users can delete their own notes" on notes for delete using (auth.uid() = user_id);
+alter publication supabase_realtime add table notes;
+
+-- 13) Advisor categories (for Discover search/filter)
+alter table profiles add column if not exists categories text[] not null default '{}'::text[];
