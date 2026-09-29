@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { supabase } from '../supabaseClient'
 import Calendar, { toISODate } from './Calendar'
 import CallRoom from './CallRoom'
-import { getWindowStatus, formatCountdown } from '../timeUtils'
+import { getWindowStatus, formatCountdown, getStartDateTime } from '../timeUtils'
 
 const TIME_SLOTS = ['9:00 AM','10:00 AM','11:00 AM','12:00 PM','1:00 PM','2:00 PM','3:00 PM','4:00 PM','5:00 PM','6:00 PM']
 const DURATIONS = [15, 30, 45, 60, 90]
@@ -17,6 +17,7 @@ export default function Sessions({ profile }) {
   const [regError, setRegError] = useState({})
   const [, setTick] = useState(0)
   const completingRef = useRef(new Set())
+  const remindingRef = useRef(new Set())
 
   async function load() {
     const { data: sessionRows } = await supabase.from('sessions').select('*').in('status', ['scheduled', 'completed']).order('session_date', { ascending: true })
@@ -59,6 +60,24 @@ export default function Sessions({ profile }) {
     })
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sessions, profile.id, profile.role])
+
+  // Fire a reminder ~10 minutes before a session starts (host or any registrant can trigger it)
+  useEffect(() => {
+    sessions.forEach((s) => {
+      if (s.status !== 'scheduled' || s.reminder_sent) return
+      if (remindingRef.current.has(s.id)) return
+      const isHost = s.ps_id === profile.id
+      const isRegistrant = myRegs.has(s.id)
+      if (!isHost && !isRegistrant) return
+      const start = getStartDateTime(s.session_date, s.session_time)
+      if (!start) return
+      const minutesUntil = (start - new Date()) / 60000
+      if (minutesUntil <= 10 && minutesUntil > -60) {
+        remindingRef.current.add(s.id)
+        supabase.rpc('send_session_reminder', { p_session_id: s.id })
+      }
+    })
+  }, [sessions, myRegs, profile.id])
 
   async function handleRegister(sessionId) {
     setRegError((prev) => ({ ...prev, [sessionId]: '' }))

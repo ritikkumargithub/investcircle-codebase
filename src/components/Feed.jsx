@@ -8,7 +8,7 @@ function fmtTime(iso) {
   } catch { return '' }
 }
 
-function PostCard({ post, profile, myLikedSet, onToggleLike }) {
+function PostCard({ post, profile, myLikedSet, mySavedSet, onToggleLike, onToggleSave }) {
   const [showComments, setShowComments] = useState(false)
   const [comments, setComments] = useState([])
   const [commentsLoaded, setCommentsLoaded] = useState(false)
@@ -17,6 +17,7 @@ function PostCard({ post, profile, myLikedSet, onToggleLike }) {
   const [commentCount, setCommentCount] = useState(post.commentCount)
   const [likeCount, setLikeCount] = useState(post.likeCount)
   const liked = myLikedSet.has(post.id)
+  const saved = mySavedSet.has(post.id)
 
   async function loadComments() {
     const { data } = await supabase.from('post_comments').select('*').eq('post_id', post.id).order('created_at', { ascending: true })
@@ -69,6 +70,9 @@ function PostCard({ post, profile, myLikedSet, onToggleLike }) {
         <button onClick={toggleShowComments} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 13, color: 'var(--text-soft)', display: 'flex', alignItems: 'center', gap: 5, padding: 0 }}>
           💬 {commentCount > 0 ? commentCount : ''} Comment{commentCount === 1 ? '' : 's'}
         </button>
+        <button onClick={() => onToggleSave(post.id, saved)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 13, color: saved ? 'var(--gold-bright)' : 'var(--text-soft)', fontWeight: saved ? 700 : 500, display: 'flex', alignItems: 'center', gap: 5, padding: 0, marginLeft: 'auto' }}>
+          {saved ? '🔖' : '📑'} {saved ? 'Saved' : 'Save'}
+        </button>
       </div>
 
       {showComments && (
@@ -95,6 +99,9 @@ function PostCard({ post, profile, myLikedSet, onToggleLike }) {
 export default function Feed({ profile }) {
   const [posts, setPosts] = useState([])
   const [myLikedSet, setMyLikedSet] = useState(new Set())
+  const [mySavedSet, setMySavedSet] = useState(new Set())
+  const [savedPostsData, setSavedPostsData] = useState([])
+  const [view, setView] = useState('all') // 'all' | 'saved'
   const [content, setContent] = useState('')
   const [imageFile, setImageFile] = useState(null)
   const [imagePreview, setImagePreview] = useState(null)
@@ -119,6 +126,18 @@ export default function Feed({ profile }) {
 
     const { data: myLikes } = await supabase.from('post_likes').select('post_id').eq('user_id', profile.id)
     setMyLikedSet(new Set((myLikes || []).map((l) => l.post_id)))
+
+    const { data: mySaves } = await supabase.from('saved_posts').select('post_id').eq('user_id', profile.id)
+    const savedIds = (mySaves || []).map((s) => s.post_id)
+    setMySavedSet(new Set(savedIds))
+
+    if (savedIds.length > 0) {
+      const { data: savedRows } = await supabase.from('posts').select('*, post_likes(count), post_comments(count)').in('id', savedIds).order('created_at', { ascending: false })
+      setSavedPostsData((savedRows || []).map((p) => ({ ...p, likeCount: p.post_likes?.[0]?.count || 0, commentCount: p.post_comments?.[0]?.count || 0 })))
+    } else {
+      setSavedPostsData([])
+    }
+
     setLoading(false)
   }
 
@@ -133,6 +152,13 @@ export default function Feed({ profile }) {
     setMyLikedSet((prev) => { const next = new Set(prev); if (wasLiked) next.delete(postId); else next.add(postId); return next })
     if (wasLiked) await supabase.from('post_likes').delete().eq('post_id', postId).eq('user_id', profile.id)
     else await supabase.from('post_likes').insert({ post_id: postId, user_id: profile.id })
+  }
+
+  async function handleToggleSave(postId, wasSaved) {
+    setMySavedSet((prev) => { const next = new Set(prev); if (wasSaved) next.delete(postId); else next.add(postId); return next })
+    if (wasSaved) await supabase.from('saved_posts').delete().eq('post_id', postId).eq('user_id', profile.id)
+    else await supabase.from('saved_posts').insert({ post_id: postId, user_id: profile.id })
+    load()
   }
 
   function handlePickImage(e) {
@@ -177,7 +203,12 @@ export default function Feed({ profile }) {
 
   return (
     <div className="fade-in">
-      {profile.role === 'ps' && (
+      <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
+        <button onClick={() => setView('all')} className={view === 'all' ? 'btn-gold' : 'btn-ghost'} style={{ flex: 1, padding: '8px', borderRadius: 8, fontSize: 13, fontWeight: 600 }}>All</button>
+        <button onClick={() => setView('saved')} className={view === 'saved' ? 'btn-gold' : 'btn-ghost'} style={{ flex: 1, padding: '8px', borderRadius: 8, fontSize: 13, fontWeight: 600 }}>🔖 Saved</button>
+      </div>
+
+      {view === 'all' && profile.role === 'ps' && (
         <div className="card" style={{ padding: 16, marginBottom: 20 }}>
           <textarea value={content} onChange={(e) => setContent(e.target.value)} placeholder="Share market news or education with your followers..." rows={3} style={{ marginBottom: 10 }} />
 
@@ -202,15 +233,20 @@ export default function Feed({ profile }) {
       )}
 
       {loading && <p style={{ textAlign: 'center', color: 'var(--text-soft)', padding: '40px 0' }}>Loading...</p>}
-      {!loading && posts.length === 0 && profile.role === 'ps' && (
+      {!loading && view === 'all' && posts.length === 0 && profile.role === 'ps' && (
         <p style={{ textAlign: 'center', color: 'var(--text-soft)', padding: '40px 0', fontSize: 14 }}>Follow other advisors from Discover to see their posts here.</p>
       )}
-      {!loading && posts.length === 0 && profile.role !== 'ps' && (
+      {!loading && view === 'all' && posts.length === 0 && profile.role !== 'ps' && (
         <p style={{ textAlign: 'center', color: 'var(--text-soft)', padding: '40px 0', fontSize: 14 }}>No posts yet. Advisors' updates will show up here.</p>
+      )}
+      {!loading && view === 'saved' && savedPostsData.length === 0 && (
+        <p style={{ textAlign: 'center', color: 'var(--text-soft)', padding: '40px 0', fontSize: 14 }}>Nothing saved yet. Tap 📑 Save on any post.</p>
       )}
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-        {posts.map((p) => <PostCard key={p.id} post={p} profile={profile} myLikedSet={myLikedSet} onToggleLike={handleToggleLike} />)}
+        {(view === 'all' ? posts : savedPostsData).map((p) => (
+          <PostCard key={p.id} post={p} profile={profile} myLikedSet={myLikedSet} mySavedSet={mySavedSet} onToggleLike={handleToggleLike} onToggleSave={handleToggleSave} />
+        ))}
       </div>
     </div>
   )

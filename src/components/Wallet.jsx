@@ -12,6 +12,7 @@ const TYPE_LABELS = {
   session_payment: 'Session payment',
   session_earning: 'Session earning',
   session_refund: 'Session refund',
+  referral_bonus: 'Referral bonus',
 }
 
 function fmtDate(iso) {
@@ -25,6 +26,19 @@ export default function Wallet({ profile, onUpdate }) {
   const [transactions, setTransactions] = useState([])
   const [loading, setLoading] = useState(true)
   const [showTopUp, setShowTopUp] = useState(false)
+  const [referralCount, setReferralCount] = useState(0)
+  const [copied, setCopied] = useState(false)
+
+  useEffect(() => {
+    supabase.from('referrals').select('*', { count: 'exact', head: true }).eq('referrer_id', profile.id).then(({ count }) => setReferralCount(count || 0))
+  }, [profile.id])
+
+  function copyReferral() {
+    const text = `Join InvestCircle and get ₹100 free using my code: ${profile.referral_code}`
+    navigator.clipboard?.writeText(text)
+    setCopied(true)
+    setTimeout(() => setCopied(false), 2000)
+  }
 
   async function load() {
     const { data } = await supabase.from('wallet_transactions').select('*').eq('user_id', profile.id).order('created_at', { ascending: false }).limit(100)
@@ -51,6 +65,22 @@ export default function Wallet({ profile, onUpdate }) {
           + Top up wallet
         </button>
         <p style={{ fontSize: 11, color: 'var(--text-soft)', marginTop: 10 }}>Dummy payment — no real money is charged.</p>
+      </div>
+
+      <div className="card" style={{ padding: 20, marginBottom: 20 }}>
+        <p style={{ fontSize: 13, fontWeight: 600, marginBottom: 4 }}>🎁 Invite friends, earn ₹50</p>
+        <p style={{ fontSize: 12, color: 'var(--text-soft)', marginBottom: 14 }}>
+          Share your code — you get ₹50 and they get an extra ₹50 on top of their signup bonus.
+          {referralCount > 0 && ` You've referred ${referralCount} ${referralCount === 1 ? 'person' : 'people'} so far.`}
+        </p>
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+          <div style={{ flex: 1, background: 'var(--ring-soft)', border: '1px solid var(--ring)', borderRadius: 8, padding: '10px 14px', fontFamily: 'monospace', fontSize: 16, letterSpacing: 2, textAlign: 'center', fontWeight: 700, color: 'var(--gold-bright)' }}>
+            {profile.referral_code}
+          </div>
+          <button onClick={copyReferral} className="btn-gold" style={{ padding: '10px 16px', borderRadius: 8, fontSize: 13, fontWeight: 700, whiteSpace: 'nowrap' }}>
+            {copied ? 'Copied!' : 'Copy'}
+          </button>
+        </div>
       </div>
 
       <p style={{ fontSize: 13, color: 'var(--text-soft)', marginBottom: 10 }}>Transaction history</p>

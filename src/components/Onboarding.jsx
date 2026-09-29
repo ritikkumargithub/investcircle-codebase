@@ -13,6 +13,7 @@ export default function Onboarding({ userId, onDone }) {
   const [bio, setBio] = useState('')
   const [sessionPrice, setSessionPrice] = useState(500)
   const [categories, setCategories] = useState([])
+  const [referralInput, setReferralInput] = useState('')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
 
@@ -20,34 +21,53 @@ export default function Onboarding({ userId, onDone }) {
     setCategories((prev) => prev.includes(cat) ? prev.filter((c) => c !== cat) : [...prev, cat])
   }
 
+  function generateCode() {
+    return Math.random().toString(36).slice(2, 8).toUpperCase()
+  }
+
   async function handleSave() {
     if (!name.trim()) { setError('Please enter your name.'); return }
     setLoading(true)
     setError('')
-    const profile = {
-      id: userId,
-      role,
-      name: name.trim(),
-      specialization: role === 'ps' ? (specialization.trim() || 'General advisory') : null,
-      reg_type: role === 'ps' ? regType : null,
-      sebi_reg_no: role === 'ps' ? (sebiRegNo.trim() || 'Not provided') : null,
-      bio: role === 'ps' ? bio.trim() : null,
-      session_price: role === 'ps' ? Number(sessionPrice) || 0 : 0,
-      categories: role === 'ps' ? categories : [],
-      wallet_balance: role === 'retail' ? SIGNUP_BONUS : 0,
+
+    let insertedProfile = null
+    let lastError = null
+    for (let attempt = 0; attempt < 5 && !insertedProfile; attempt++) {
+      const referralCode = generateCode()
+      const profile = {
+        id: userId,
+        role,
+        name: name.trim(),
+        specialization: role === 'ps' ? (specialization.trim() || 'General advisory') : null,
+        reg_type: role === 'ps' ? regType : null,
+        sebi_reg_no: role === 'ps' ? (sebiRegNo.trim() || 'Not provided') : null,
+        bio: role === 'ps' ? bio.trim() : null,
+        session_price: role === 'ps' ? Number(sessionPrice) || 0 : 0,
+        categories: role === 'ps' ? categories : [],
+        wallet_balance: role === 'retail' ? SIGNUP_BONUS : 0,
+        referral_code: referralCode,
+      }
+      const { error } = await supabase.from('profiles').insert(profile)
+      if (!error) { insertedProfile = profile; break }
+      lastError = error
+      if (!error?.message?.includes('referral_code')) break // some other error; stop retrying
     }
-    const { error } = await supabase.from('profiles').insert(profile)
-    if (error) { setLoading(false); setError(error.message); return }
+
+    if (!insertedProfile) { setLoading(false); setError(lastError?.message || 'Could not create profile.'); return }
 
     if (role === 'retail') {
-      // Best-effort welcome bonus record; a unique index prevents this from ever duplicating.
       await supabase.from('wallet_transactions').insert({
         user_id: userId, type: 'signup_bonus', amount: SIGNUP_BONUS, description: 'Welcome bonus',
       })
     }
 
+    if (referralInput.trim()) {
+      const { error: refError } = await supabase.rpc('apply_referral', { p_referred_id: userId, p_code: referralInput.trim().toUpperCase() })
+      if (refError) console.warn('Referral code not applied:', refError.message)
+    }
+
     setLoading(false)
-    onDone(profile)
+    onDone(insertedProfile)
   }
 
   return (
@@ -77,9 +97,7 @@ export default function Onboarding({ userId, onDone }) {
         )}
 
         <p style={{ fontSize: 13, color: 'var(--text-soft)', marginBottom: 6 }}>Name</p>
-        <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Your full name" style={{ marginBottom: 16 }} />
-
-        {role === 'ps' && (
+        <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Your full name" style={{ marginBottom: 16 }} />        {role === 'ps' && (
           <div className="fade-in">
             <p style={{ fontSize: 12, color: 'var(--text-soft)', marginBottom: 8 }}>Advisor details</p>
             <input value={specialization} onChange={(e) => setSpecialization(e.target.value)} placeholder="Specialization (e.g. Retirement planning, IPOs)" style={{ marginBottom: 12 }} />
@@ -103,6 +121,9 @@ export default function Onboarding({ userId, onDone }) {
         )}
 
         {error && <p className="error-text" style={{ margin: '12px 0' }}>{error}</p>}
+
+        <p style={{ fontSize: 12, color: 'var(--text-soft)', margin: '4px 0 6px' }}>Referral code (optional)</p>
+        <input value={referralInput} onChange={(e) => setReferralInput(e.target.value.toUpperCase())} placeholder="e.g. AB12CD" style={{ marginBottom: 4 }} />
 
         <button onClick={handleSave} disabled={loading} className="btn-gold" style={{ width: '100%', padding: '12px', borderRadius: 8, fontSize: 15, marginTop: 12 }}>
           {loading ? 'Saving...' : 'Create profile'}

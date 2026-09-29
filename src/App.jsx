@@ -9,6 +9,7 @@ import Sessions from './components/Sessions'
 import Wallet from './components/Wallet'
 import Notes from './components/Notes'
 import ProfileTab from './components/ProfileTab'
+import NotificationBell from './components/NotificationBell'
 
 export default function App() {
   const [session, setSession] = useState(undefined)
@@ -71,9 +72,12 @@ export default function App() {
         <div className="serif" style={{ fontSize: 24, color: 'var(--gold-bright)' }}>
           InvestCircle<span style={{ color: 'var(--gold)' }}>.</span>
         </div>
-        <span className={`badge ${profile.role === 'ps' ? 'badge-gold' : ''}`}>
-          {profile.role === 'ps' ? `${profile.reg_type} Advisor` : 'Investor'}
-        </span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          <span className={`badge ${profile.role === 'ps' ? 'badge-gold' : ''}`}>
+            {profile.role === 'ps' ? `${profile.reg_type} Advisor` : 'Investor'}
+          </span>
+          <NotificationBell profile={profile} />
+        </div>
       </div>
 
       <div style={{ display: 'flex', gap: 18, marginBottom: 24, borderBottom: '1px solid var(--ring)', overflowX: 'auto' }}>

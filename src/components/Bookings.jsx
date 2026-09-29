@@ -2,7 +2,8 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { supabase } from '../supabaseClient'
 import Calendar, { toISODate } from './Calendar'
 import CallRoom from './CallRoom'
-import { getWindowStatus, formatCountdown } from '../timeUtils'
+import ChatPanel from './ChatPanel'
+import { getWindowStatus, formatCountdown, getStartDateTime } from '../timeUtils'
 
 export default function Bookings({ profile }) {
   const [bookings, setBookings] = useState([])
@@ -10,8 +11,10 @@ export default function Bookings({ profile }) {
   const [selectedDate, setSelectedDate] = useState(toISODate(new Date()))
   const [view, setView] = useState('calendar')
   const [activeCall, setActiveCall] = useState(null)
+  const [activeChat, setActiveChat] = useState(null)
   const [, setTick] = useState(0) // forces periodic re-render so buttons update live
   const completingRef = useRef(new Set())
+  const remindingRef = useRef(new Set())
 
   const field = profile.role === 'ps' ? 'ps_id' : 'retail_id'
 
@@ -41,6 +44,21 @@ export default function Bookings({ profile }) {
       }
     })
     // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [bookings])
+
+  // Fire a reminder notification ~10 minutes before a confirmed booking starts
+  useEffect(() => {
+    bookings.forEach((b) => {
+      if (b.status !== 'confirmed' || b.reminder_sent || !b.booking_date || !b.booking_time) return
+      if (remindingRef.current.has(b.id)) return
+      const start = getStartDateTime(b.booking_date, b.booking_time)
+      if (!start) return
+      const minutesUntil = (start - new Date()) / 60000
+      if (minutesUntil <= 10 && minutesUntil > -60) {
+        remindingRef.current.add(b.id)
+        supabase.rpc('send_booking_reminder', { p_booking_id: b.id })
+      }
+    })
   }, [bookings])
 
   async function setStatus(id, status) {
@@ -84,13 +102,13 @@ export default function Bookings({ profile }) {
           </p>
           {bookingsOnSelectedDay.length === 0 && <p style={{ fontSize: 13, color: 'var(--text-soft)', marginBottom: 20 }}>No bookings on this day.</p>}
           <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginBottom: bookingsWithoutDate.length ? 24 : 0 }}>
-            {bookingsOnSelectedDay.map((b) => <BookingCard key={b.id} b={b} profile={profile} setStatus={setStatus} onJoinCall={() => setActiveCall(b)} />)}
+            {bookingsOnSelectedDay.map((b) => <BookingCard key={b.id} b={b} profile={profile} setStatus={setStatus} onJoinCall={() => setActiveCall(b)} onOpenChat={() => setActiveChat(b)} />)}
           </div>
           {bookingsWithoutDate.length > 0 && (
             <>
               <p style={{ fontSize: 13, color: 'var(--text-soft)', marginBottom: 10 }}>Older requests (no date on file)</p>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-                {bookingsWithoutDate.map((b) => <BookingCard key={b.id} b={b} profile={profile} setStatus={setStatus} onJoinCall={() => setActiveCall(b)} />)}
+                {bookingsWithoutDate.map((b) => <BookingCard key={b.id} b={b} profile={profile} setStatus={setStatus} onJoinCall={() => setActiveCall(b)} onOpenChat={() => setActiveChat(b)} />)}
               </div>
             </>
           )}
@@ -99,18 +117,19 @@ export default function Bookings({ profile }) {
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
           {sortedHistory.length === 0 && <p style={{ textAlign: 'center', color: 'var(--text-soft)', padding: '20px 0', fontSize: 14 }}>No booking history yet.</p>}
-          {sortedHistory.map((b) => <BookingCard key={b.id} b={b} profile={profile} setStatus={setStatus} onJoinCall={() => setActiveCall(b)} showDate />)}
+          {sortedHistory.map((b) => <BookingCard key={b.id} b={b} profile={profile} setStatus={setStatus} onJoinCall={() => setActiveCall(b)} onOpenChat={() => setActiveChat(b)} showDate />)}
         </div>
       )}
 
       {activeCall && (
         <CallRoom roomId={`booking-${activeCall.id}`} profile={profile} title={`Session with ${profile.role === 'ps' ? activeCall.retail_name : activeCall.ps_name}`} onLeave={() => setActiveCall(null)} />
       )}
+      {activeChat && <ChatPanel booking={activeChat} profile={profile} onClose={() => setActiveChat(null)} />}
     </div>
   )
 }
 
-function BookingCard({ b, profile, setStatus, onJoinCall, showDate }) {
+function BookingCard({ b, profile, setStatus, onJoinCall, onOpenChat, showDate }) {
   const otherName = profile.role === 'ps' ? b.retail_name : b.ps_name
   const hasSchedule = b.booking_date && b.booking_time
   const windowStatus = hasSchedule ? getWindowStatus(b.booking_date, b.booking_time, b.duration_minutes) : 'unknown'
@@ -143,6 +162,10 @@ function BookingCard({ b, profile, setStatus, onJoinCall, showDate }) {
 
         {b.status === 'confirmed' && windowStatus === 'live' && (
           <button onClick={onJoinCall} className="btn-gold" style={{ padding: '6px 14px', borderRadius: 8, fontSize: 12, fontWeight: 600 }}>📹 Join call</button>
+        )}
+
+        {(b.status === 'confirmed' || b.status === 'completed') && (
+          <button onClick={onOpenChat} className="btn-ghost" style={{ padding: '6px 14px', borderRadius: 8, fontSize: 12, fontWeight: 600 }}>💬 Chat</button>
         )}
 
         {b.status === 'confirmed' && windowStatus === 'upcoming' && (

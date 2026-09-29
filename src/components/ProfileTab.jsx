@@ -159,6 +159,10 @@ export default function ProfileTab({ profile, onUpdate }) {
               <span style={{ fontSize: 13, color: 'var(--text-soft)' }}>Earnings balance</span>
               <span className="serif" style={{ fontSize: 18, color: 'var(--gold-bright)' }}>₹{profile.wallet_balance}</span>
             </div>
+            <div style={{ marginTop: 10, paddingTop: 10, borderTop: '1px solid var(--ring)' }}>
+              <p style={{ fontSize: 12, color: 'var(--text-soft)', marginBottom: 4 }}>🎁 Your referral code (₹50 per referral)</p>
+              <span style={{ fontFamily: 'monospace', fontSize: 15, letterSpacing: 1, color: 'var(--gold-bright)', fontWeight: 700 }}>{profile.referral_code}</span>
+            </div>
           </>
         ) : (
           <>
